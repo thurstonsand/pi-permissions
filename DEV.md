@@ -21,7 +21,7 @@ mise run check
 Use a separate tmux window to run Pi with the local extension entrypoint loaded directly:
 
 ```sh
-tmux new-window -n pi-permissions 'cd "$(pwd)" && pi -e ./extensions/permissions.ts'
+tmux new-window -n pi-permissions 'cd "$(pwd)" && pi -e ./extensions/index.ts'
 ```
 
 After code changes, use Pi's `/reload` command in that test session to reload the extension. Keep this as a live manual smoke test for extension startup, command registration, prompt behavior, and tool-call interception.

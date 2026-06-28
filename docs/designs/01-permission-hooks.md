@@ -39,7 +39,7 @@ The package is named `pi-permissions` unless npm availability requires `@thursto
 ```json
 {
   "pi": {
-    "extensions": ["./extensions/permissions.ts"]
+    "extensions": ["./extensions/index.ts"]
   }
 }
 ```
@@ -126,7 +126,7 @@ interface PermissionRequestPrompt {
 }
 ```
 
-The public contract avoids `title`, `body`, and `modal` names. Internally the UI may construct a display message from `description`, `guidance`, and tool details, but user-provided strings should keep their original names in intermediate types where practical.
+The public contract avoids `title`, `body`, and display-surface names. Internally the UI may construct a display message from `description`, `guidance`, and tool details, but user-provided strings should keep their original names in intermediate types where practical.
 
 The rendered request prompt uses this anatomy:
 
@@ -186,7 +186,6 @@ Otherwise `matcher` can be:
 type PermissionMatcher =
   | PermissionToolName
   | readonly PermissionToolName[]
-  | { toolName?: PermissionToolName | readonly PermissionToolName[] }
   | ((input: PermissionInput) => boolean | Promise<boolean>);
 ```
 
@@ -285,7 +284,7 @@ An explicit allow decision would make it easy for project permissions to suppres
 
 ### Full prompt replacement
 
-Letting hooks replace the entire modal title/body would maximize flexibility but weaken consistency. Hooks always provide `name` and `description`; request decisions may add `guidance` and option labels only.
+Letting hooks replace the entire prompt title/body would maximize flexibility but weaken consistency. Hooks always provide `name` and `description`; request decisions may add `guidance` and option labels only.
 
 ### Separate PermissionToolKind abstraction
 
@@ -303,27 +302,27 @@ A normalized tool kind would give pi-permissions its own categories, but Pi alre
 
 ## Implementation Plan
 
-- [ ] Phase 1: Repository skeleton and design record
+- [x] Phase 1: Repository skeleton and design record
   - Goal: Create the publishable package skeleton and capture this design before implementation.
   - Files: `package.json`, `mise.toml`, `.envrc`, `tsconfig.json`, `biome.json`, `README.md`, `RELEASE.md`, `docs/designs/01-permission-hooks.md`, release skill.
   - Work: Initialize the repo, add the no-op Pi extension entrypoint, add initial public contract placeholders, and configure the quality gate.
   - Validation: `mise bootstrap --yes`, `mise run check`, `npm pack --dry-run`.
 
-- [ ] Phase 2: Core public contract
+- [x] Phase 2: Core public contract
   - Goal: Implement and test the public types, matcher evaluation, typed built-in tool input normalization, and `matchTool` helper.
   - Files: `src/` and `test/`.
   - Work: Derive built-in names from Pi exported tool call event types, normalize tool calls into permission inputs, implement matcher evaluation, and add helper tests.
   - Validation: `mise run check`.
 
-- [ ] Phase 3: Permission module loader
+- [x] Phase 3: Permission module loader
   - Goal: Load user-level and trusted project-level permission modules with Pi-like discovery.
   - Files: `src/loader.ts`, `src/runtime.ts`, tests with temporary permission trees.
   - Work: Discover top-level files and package dirs with `pi.permissions`, load with jiti, register hooks through `PermissionsAPI`, preserve discovery order, and notify/continue on load failures.
   - Validation: loader unit tests and `mise run check`.
 
-- [ ] Phase 4: Permission extension behavior
+- [x] Phase 4: Permission extension behavior
   - Goal: Wire the loader and evaluator into the Pi extension entrypoint.
-  - Files: `extensions/permissions.ts`, runtime/evaluator modules, UI/presentation modules.
+  - Files: `extensions/index.ts`, extension surface modules, runtime/evaluator modules, UI/presentation modules.
   - Work: Intercept `tool_call`, evaluate hooks project-first then user-level, preserve current request/block behavior, and add `/permissions` summary/toggle behavior.
   - Validation: unit tests for decision behavior and a local Pi smoke test.
 
