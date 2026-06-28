@@ -1,0 +1,44 @@
+[settings]
+experimental = true
+
+[tools]
+actionlint = "1.7.12"
+node = "lts"
+
+[env]
+_.path = ["{{config_root}}/node_modules/.bin"]
+
+[tasks.bootstrap]
+description = "Install project dependencies"
+run = "npm install --silent --no-fund --no-audit"
+sources = ["package.json", "package-lock.json"]
+outputs = ["node_modules/.package-lock.json"]
+quiet = true
+
+[tasks.lint]
+description = "Lint"
+depends = ["lint:biome", "lint:actions"]
+
+[tasks."lint:biome"]
+description = "Lint TypeScript and JSON"
+run = "biome check ."
+
+[tasks."lint:actions"]
+description = "Lint GitHub Actions workflows"
+run = "actionlint"
+
+[tasks.format]
+description = "Format and apply safe fixes"
+run = "biome check --write ."
+
+[tasks.typecheck]
+description = "Type-check TypeScript"
+run = "tsc --noEmit"
+
+[tasks.test]
+description = "Run tests"
+run = "vitest run"
+
+[tasks.check]
+description = "Run full verification"
+depends = ["lint", "typecheck", "test"]
