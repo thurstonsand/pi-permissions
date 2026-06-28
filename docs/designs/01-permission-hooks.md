@@ -104,7 +104,9 @@ export default function permissions(api: PermissionsAPI): void {
     description: "The corpus JSON is too large to inspect directly.",
     matcher: "read",
     handler(input) {
-      return { decision: "pass" };
+      if (input.tool.projectPath === "data/corpus.json") {
+        return { decision: "request" };
+      }
     },
   });
 }
@@ -149,12 +151,11 @@ Permission handlers return:
 ```ts
 
 type PermissionDecision =
-  | { decision: "pass" }
   | { decision: "block"; reason: string }
   | { decision: "request"; prompt?: PermissionRequestPrompt };
 ```
 
-`pass` is bare and non-terminal. It carries no reason because more than one matching hook may pass, and only terminal decisions should inject context.
+Handlers return `undefined` when they do not make a terminal decision.
 
 `block` is terminal and injects its `reason` as the blocked tool result reason.
 
@@ -170,7 +171,7 @@ The extension evaluates hooks in this order:
 For each hook:
 
 - non-matching hooks are skipped
-- `pass` continues evaluation
+- `undefined` continues evaluation
 - `block` stops evaluation and blocks the tool
 - `request` stops evaluation and prompts the Approver
 
@@ -207,7 +208,7 @@ interface PermissionInput {
 
 `cwd` is the active Pi session working directory. `permissionRoot` is the directory containing the permission module or permission package currently handling the hook.
 
-The public model matches on exact `toolName`; it does not introduce a separate `PermissionToolKind` abstraction. Built-in tool inputs should expose typed convenience fields such as paths or bash commands, while custom tools carry the original input as unknown data.
+The public model matches on exact `toolName`; it does not introduce a separate `PermissionToolKind` abstraction. Built-in tool inputs should expose typed convenience fields such as paths or bash commands, while custom tools carry the original input as record-shaped data.
 
 ### 10. Tool matching helper
 
@@ -216,17 +217,13 @@ The package should provide an optional `matchTool` helper for handlers that want
 ```ts
 return matchTool(input.tool, {
   read(tool) {
-    return { decision: "pass" };
+    if (tool.projectPath === "data/corpus.json") return { decision: "request" };
   },
 
   custom: {
     web_search(tool) {
       return { decision: "request" };
     },
-  },
-
-  default(tool) {
-    return { decision: "pass" };
   },
 });
 ```
@@ -269,8 +266,8 @@ The package may eventually ship an Author-facing skill that teaches Pi how to cr
 - **Permission module fails to load:** Notify and continue without that module. A bad policy file should not brick the agent.
 - **Permission package has dependencies:** The package directory owns its dependencies, loaded through jiti in the same spirit as Pi extensions.
 - **No UI is available for a request decision:** Block the tool call with a reason that permission was required but no UI was available.
-- **Multiple hooks match:** The first `block` or `request` wins. `pass` decisions do not stop evaluation.
-- **Custom extension tool is called:** Match by exact `toolName`; typed built-in conveniences are unavailable unless the author narrows the custom input themselves.
+- **Multiple hooks match:** The first `block` or `request` wins. `undefined` decisions do not stop evaluation.
+- **Custom extension tool is called:** Match by exact `toolName`; custom inputs expose record-shaped data.
 
 ## Rejected Alternatives
 
@@ -280,7 +277,7 @@ A declarative YAML policy would make simple rules reviewable, but it requires de
 
 ### Project-level allow decisions
 
-An explicit allow decision would make it easy for project permissions to suppress user-level safety checks. The v1 decision model uses `pass`, `block`, and `request` only.
+An explicit allow decision would make it easy for project permissions to suppress user-level safety checks. The v1 decision model uses only terminal `block` and `request` decisions; `undefined` means the hook does not decide.
 
 ### Full prompt replacement
 

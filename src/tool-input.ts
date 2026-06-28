@@ -92,8 +92,8 @@ export interface LsPermissionToolInput
   projectPath?: string;
 }
 
-export interface CustomPermissionToolInput
-  extends BasePermissionToolInput<string, ToolCallEvent["input"]> {}
+export interface CustomPermissionToolInput<TName extends string = string>
+  extends BasePermissionToolInput<TName, Record<string, unknown>> {}
 
 export function permissionToolInputFromToolCall(
   event: ToolCallEvent,
@@ -171,6 +171,18 @@ export function isFindToolInput(tool: PermissionToolInput): tool is FindPermissi
 
 export function isLsToolInput(tool: PermissionToolInput): tool is LsPermissionToolInput {
   return tool.toolName === "ls";
+}
+
+export function isCustomToolInput(
+  tool: PermissionToolInput,
+  toolName: BuiltInToolName,
+): tool is never;
+export function isCustomToolInput<TName extends string>(
+  tool: PermissionToolInput,
+  toolName: TName,
+): tool is CustomPermissionToolInput<TName>;
+export function isCustomToolInput(tool: PermissionToolInput, toolName: string): boolean {
+  return tool.toolName === toolName;
 }
 
 function requiredPathFields(

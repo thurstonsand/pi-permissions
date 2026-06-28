@@ -7,6 +7,7 @@ export type {
   PermissionsAPI,
   ToolUsePermissionHook,
 } from "./api.js";
+export { block, request } from "./api.js";
 export { matchTool, type ToolMatchHandlers } from "./matcher.js";
 export {
   type BashPermissionToolInput,
@@ -16,6 +17,7 @@ export {
   type FindPermissionToolInput,
   type GrepPermissionToolInput,
   isBashToolInput,
+  isCustomToolInput,
   isEditToolInput,
   isFindToolInput,
   isGrepToolInput,

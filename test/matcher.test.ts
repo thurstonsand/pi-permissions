@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RegisteredPermissionHook } from "../src/api.js";
 import { evaluatePermissionHooks } from "../src/evaluator.js";
 import { matchesPermissionInput, matchTool } from "../src/matcher.js";
-import type { PermissionInput } from "../src/tool-input.js";
+import { isCustomToolInput, type PermissionInput } from "../src/tool-input.js";
 
 const readInput: PermissionInput = {
   cwd: "/repo",
@@ -32,15 +32,15 @@ describe("matchesPermissionInput", () => {
 });
 
 describe("evaluatePermissionHooks", () => {
-  it("continues after pass and stops at the first terminal decision", async () => {
+  it("continues after undefined and stops at the first terminal decision", async () => {
     const hooks: RegisteredPermissionHook[] = [
       {
         name: "first",
-        description: "passes",
+        description: "does not decide",
         permissionRoot: "/user/permissions",
         modulePath: "/user/permissions/first.ts",
         matcher: "read",
-        handler: () => ({ decision: "pass" }),
+        handler: () => undefined,
       },
       {
         name: "second",
@@ -89,5 +89,15 @@ describe("matchTool", () => {
 
     expect(readResult).toBe("data/corpus.json");
     expect(customResult).toBe("web_search");
+  });
+
+  it("narrows custom tool inputs by name", () => {
+    const tool = { toolName: "mcp", input: { tool: "search_web" }, detail: "search_web" };
+
+    if (!isCustomToolInput(tool, "mcp")) {
+      throw new Error("expected mcp custom tool");
+    }
+
+    expect(tool.input.tool).toBe("search_web");
   });
 });

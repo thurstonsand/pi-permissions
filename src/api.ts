@@ -23,7 +23,6 @@ export type PermissionHandler = (
 ) => PermissionDecision | Promise<PermissionDecision | undefined> | undefined;
 
 export type PermissionDecision =
-  | { decision: "pass" }
   | { decision: "block"; reason: string }
   | { decision: "request"; prompt?: PermissionRequestPrompt };
 
@@ -31,6 +30,14 @@ export interface PermissionRequestPrompt {
   guidance?: string;
   approveLabel?: string;
   rejectLabel?: string;
+}
+
+export function block(reason: string): PermissionDecision {
+  return { decision: "block", reason };
+}
+
+export function request(prompt?: PermissionRequestPrompt): PermissionDecision {
+  return prompt ? { decision: "request", prompt } : { decision: "request" };
 }
 
 export interface RegisteredPermissionHook extends ToolUsePermissionHook {

@@ -23,7 +23,7 @@ describe("loadPermissionHooksFromDir", () => {
         api.onToolUse({
           name: "top-level",
           description: "loaded from a top-level file",
-          handler() { return { decision: "pass" }; },
+          handler() {},
         });
       }`,
     );
@@ -47,7 +47,7 @@ describe("loadPermissionHooksFromDir", () => {
         api.onToolUse({
           name: "with import",
           description: "uses the package public API",
-          handler(input) { return matchTool(input.tool, { default: () => ({ decision: "pass" }) }); },
+          handler(input) { return matchTool(input.tool, { default: () => undefined }); },
         });
       }`,
     );
@@ -75,7 +75,7 @@ describe("loadPermissionHooksFromDir", () => {
         api.onToolUse({
           name: "package",
           description: "loaded from package metadata",
-          handler() { return { decision: "pass" }; },
+          handler() {},
         });
       }`,
     );

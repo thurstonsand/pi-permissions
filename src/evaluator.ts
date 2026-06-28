@@ -29,8 +29,8 @@ export async function evaluatePermissionHooks(
 
     if (!(await matchesPermissionInput(hook.matcher, hookInput))) continue;
 
-    const decision = (await hook.handler(hookInput)) ?? { decision: "pass" };
-    if (decision.decision === "pass") continue;
+    const decision = await hook.handler(hookInput);
+    if (!decision) continue;
 
     return { hook, input: hookInput, decision };
   }
