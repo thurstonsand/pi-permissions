@@ -6,7 +6,7 @@ Draft
 
 ## Decision Summary
 
-`pi-permissions` will package Pi tool-use permission checks as a distributable Pi extension. The extension loads user-level and trusted project-level TypeScript permission modules through a Pi-like jiti loader, then evaluates their registered tool-use hooks before Pi executes a tool. The design chooses a small TypeScript hook API over a declarative YAML policy language so authors can express simple and complex checks with the same mechanism.
+`@thurstonsand/pi-permissions` will package Pi tool-use permission checks as a distributable Pi extension. The extension loads user-level and trusted project-level TypeScript permission modules through a Pi-like jiti loader, then evaluates their registered tool-use hooks before Pi executes a tool. The design chooses a small TypeScript hook API over a declarative YAML policy language so authors can express simple and complex checks with the same mechanism.
 
 ## Problem Statement
 
@@ -14,7 +14,7 @@ The current permission gate exists as a personal chezmoi-managed Pi extension wi
 
 ## Goals
 
-- Publish `pi-permissions` as a Pi package installable from Pi settings.
+- Publish `@thurstonsand/pi-permissions` as a Pi package installable from Pi settings.
 - Load user-level permission modules for every session.
 - Load project-level permission modules only when the project is trusted.
 - Let permission modules use TypeScript and arbitrary package dependencies.
@@ -34,7 +34,7 @@ The current permission gate exists as a personal chezmoi-managed Pi extension wi
 
 ### 1. Package and installation shape
 
-The package is named `pi-permissions` unless npm availability requires `@thurstonsand/pi-permissions`. It is published as a Pi package with one extension entrypoint:
+The package is named `@thurstonsand/pi-permissions`. It is published as a Pi package with one extension entrypoint:
 
 ```json
 {
@@ -96,7 +96,7 @@ Subdirectory `index.ts` files are not loaded implicitly. Package directories may
 A permission module default-exports a factory function that receives a `PermissionsAPI`, mirroring Pi extensions:
 
 ```ts
-import type { PermissionsAPI } from "pi-permissions";
+import type { PermissionsAPI } from "@thurstonsand/pi-permissions";
 
 export default function permissions(api: PermissionsAPI): void {
   api.onToolUse({
@@ -327,7 +327,7 @@ A normalized tool kind would give pi-permissions its own categories, but Pi alre
   - Validation: unit tests for decision behavior and a local Pi smoke test.
 
 - [ ] Phase 5: Migrate existing rules and chezmoi integration
-  - Goal: Replace the hardcoded chezmoi permission gate with installed `pi-permissions` and user-level permission modules.
+  - Goal: Replace the hardcoded chezmoi permission gate with installed `@thurstonsand/pi-permissions` and user-level permission modules.
   - Files: ansiblonomicon chezmoi/Pi settings and `~/.pi/agent/permissions` source equivalents.
   - Work: Move current hardcoded rules into user permission modules, install the package through Pi settings, and remove the old extension copy.
   - Validation: local Pi smoke tests for git mutation, recursive forced removal, SQL mutation, and project-specific permission behavior.

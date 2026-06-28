@@ -8,5 +8,5 @@ Initial package skeleton and permission hook design.
 
 ### Added
 
-- Added the initial `pi-permissions` package skeleton.
+- Added the initial `@thurstonsand/pi-permissions` package skeleton.
 - Added the accepted design for user-level and trusted project-level permission hooks.

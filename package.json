@@ -1,5 +1,5 @@
 {
-  "name": "pi-permissions",
+  "name": "@thurstonsand/pi-permissions",
   "version": "0.1.0",
   "type": "module",
   "description": "Pi extension package for user and project-level tool permission hooks",
@@ -74,5 +74,8 @@
   },
   "lint-staged": {
     "*.{js,cjs,mjs,jsx,ts,tsx,json,jsonc}": "biome check --write --no-errors-on-unmatched"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

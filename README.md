@@ -1,4 +1,4 @@
-# pi-permissions
+# @thurstonsand/pi-permissions
 
 Pi extension package for user and project-level tool permission hooks.
 

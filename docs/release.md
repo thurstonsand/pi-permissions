@@ -1,6 +1,6 @@
 # Release
 
-`pi-permissions` publishes to npm from GitHub Actions when a stable `v*` tag is pushed.
+`@thurstonsand/pi-permissions` publishes to npm from GitHub Actions when a stable `v*` tag is pushed.
 
 ## Release flow
 

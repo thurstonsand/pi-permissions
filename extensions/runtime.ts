@@ -21,11 +21,15 @@ export async function loadRuntimeHooks(ctx: ExtensionContext): Promise<LoadedPer
   const projectHooks = ctx.isProjectTrusted()
     ? await loadPermissionHooksFromDir(join(ctx.cwd, CONFIG_DIR_NAME, "permissions"))
     : { hooks: [], errors: [] };
-  const userHooks = await loadPermissionHooksFromDir(join(getAgentDir(), "permissions"));
+  const userHooks = await loadPermissionHooksFromDir(getUserPermissionsDir());
   return {
     hooks: [...projectHooks.hooks, ...userHooks.hooks],
     errors: [...projectHooks.errors, ...userHooks.errors],
   };
+}
+
+export function getUserPermissionsDir(): string {
+  return process.env.PI_PERMISSIONS_USER_DIR ?? join(getAgentDir(), "permissions");
 }
 
 export function notifyLoadErrors(ctx: ExtensionContext, errors: PermissionLoadError[]): void {
