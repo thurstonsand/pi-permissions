@@ -2,6 +2,24 @@
 
 # Release notes
 
+## 0.2.0
+
+Simplifies the permission decision model and adds small authoring helpers.
+
+### Breaking
+
+- Authors returning `{ decision: "pass" }` should return `undefined` instead.
+
+### Added
+
+- Added `request()` and `block()` helpers for terminal permission decisions.
+- Added `isCustomToolInput()` for narrowing custom tools by name.
+
+### Changed
+
+- Removed the explicit `pass` decision. Permission hooks now return `undefined` when they do not make a terminal decision.
+- Custom tool inputs now expose record-shaped input data.
+
 ## 0.1.4
 
 Initial release of `@thurstonsand/pi-permissions`.
