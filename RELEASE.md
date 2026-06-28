@@ -2,11 +2,14 @@
 
 # Release notes
 
-## Unreleased
+## 0.1.4
 
-Initial package skeleton and permission hook design.
+Initial release of `@thurstonsand/pi-permissions`.
 
 ### Added
 
-- Added the initial `@thurstonsand/pi-permissions` package skeleton.
-- Added the accepted design for user-level and trusted project-level permission hooks.
+- Added permission hook loading for user-level modules and trusted project-level modules.
+- Added the public permission hook API, matcher helpers, and typed tool input helpers.
+- Added interactive request prompts, pending approval state, and a permissions summary UI.
+- Added `/permissions` for viewing loaded hooks and toggling checks per session branch.
+- Added configurable toggle shortcut support via `permissions.toggleShortcut` (`alt+p` by default).
