@@ -2,7 +2,7 @@
 
 # Release notes
 
-## 0.1.1
+## 0.1.2
 
 Initial release of `@thurstonsand/pi-permissions`.
 
