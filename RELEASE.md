@@ -2,6 +2,20 @@
 
 # Release notes
 
+## 0.3.0
+
+Adds package-level permission hooks.
+
+### Added
+
+- Added package-bundled permissions through Pi package `pi.permissions` metadata and top-level `permissions/` convention directories.
+- Added package permission filtering with Pi-style include, exclude, force-include, force-exclude, and empty-array disable semantics.
+- Added `PermissionSource` metadata on registered hooks and load errors.
+
+### Changed
+
+- Added `minimatch` as a runtime dependency for package permission filter matching.
+
 ## 0.2.0
 
 Simplifies the permission decision model and adds small authoring helpers.
