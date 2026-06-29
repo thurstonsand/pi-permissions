@@ -37,6 +37,7 @@ describe("evaluatePermissionHooks", () => {
       {
         name: "first",
         description: "does not decide",
+        source: "user",
         permissionRoot: "/user/permissions",
         modulePath: "/user/permissions/first.ts",
         matcher: "read",
@@ -45,6 +46,7 @@ describe("evaluatePermissionHooks", () => {
       {
         name: "second",
         description: "blocks",
+        source: "user",
         permissionRoot: "/user/permissions",
         modulePath: "/user/permissions/second.ts",
         matcher: "read",
@@ -53,6 +55,7 @@ describe("evaluatePermissionHooks", () => {
       {
         name: "third",
         description: "should not run",
+        source: "user",
         permissionRoot: "/user/permissions",
         modulePath: "/user/permissions/third.ts",
         matcher: "read",

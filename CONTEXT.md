@@ -6,6 +6,7 @@
 - Permission module: A TypeScript module loaded by `pi-permissions` that registers permission hooks
 - User-level: In the context of an individual user's machine; typically within `~/.pi/agent` folder
 - Project-level: In the context of an individual project/repo/folder; may have project-specific settings/permissions
+- Package-level: In the context of an external pi package; may provide its own permissions, similar to extension, skills, etc
 - Trusted directory: Pi concept that determines if Pi, and by extension this extension, loads settings that are present in a project/directory
 - Permission hook: A registered check that can inspect one tool call and return a permission decision
 - Matcher: The part of a permission hook that selects which tool calls the hook should inspect

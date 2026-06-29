@@ -4,6 +4,7 @@ export type {
   PermissionMatcher,
   PermissionMatcherFunction,
   PermissionRequestPrompt,
+  PermissionSource,
   PermissionsAPI,
   ToolUsePermissionHook,
 } from "./api.js";

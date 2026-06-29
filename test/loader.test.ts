@@ -28,11 +28,12 @@ describe("loadPermissionHooksFromDir", () => {
       }`,
     );
 
-    const result = await loadPermissionHooksFromDir(dir);
+    const result = await loadPermissionHooksFromDir(dir, "user");
 
     expect(result.errors).toEqual([]);
     expect(result.hooks).toHaveLength(1);
     expect(result.hooks[0]?.name).toBe("top-level");
+    expect(result.hooks[0]?.source).toBe("user");
     expect(result.hooks[0]?.permissionRoot).toBe(dir);
   });
 
@@ -41,7 +42,7 @@ describe("loadPermissionHooksFromDir", () => {
     tempDirs.push(dir);
     writeFileSync(
       join(dir, "rules.ts"),
-      `import { matchTool } from "pi-permissions";
+      `import { matchTool } from "@thurstonsand/pi-permissions";
 
       export default function permissions(api) {
         api.onToolUse({
@@ -52,7 +53,7 @@ describe("loadPermissionHooksFromDir", () => {
       }`,
     );
 
-    const result = await loadPermissionHooksFromDir(dir);
+    const result = await loadPermissionHooksFromDir(dir, "user");
 
     expect(result.errors).toEqual([]);
     expect(result.hooks).toHaveLength(1);
@@ -80,11 +81,12 @@ describe("loadPermissionHooksFromDir", () => {
       }`,
     );
 
-    const result = await loadPermissionHooksFromDir(dir);
+    const result = await loadPermissionHooksFromDir(dir, "project");
 
     expect(result.errors).toEqual([]);
     expect(result.hooks).toHaveLength(1);
     expect(result.hooks[0]?.name).toBe("package");
+    expect(result.hooks[0]?.source).toBe("project");
     expect(result.hooks[0]?.permissionRoot).toBe(packageDir);
   });
 });

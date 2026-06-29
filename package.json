@@ -2,7 +2,7 @@
   "name": "@thurstonsand/pi-permissions",
   "version": "0.1.0",
   "type": "module",
-  "description": "Pi extension package for user and project-level tool permission hooks",
+  "description": "Pi extension package for user, project, and package-level tool permission hooks",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -50,7 +50,8 @@
     "prepare": "husky || true"
   },
   "dependencies": {
-    "jiti": "^2.6.1"
+    "jiti": "^2.6.1",
+    "minimatch": "^10.2.5"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.14",

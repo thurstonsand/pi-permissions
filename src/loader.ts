@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as _bundledPiAgentCore from "@earendil-works/pi-agent-core";
 import * as _bundledPiAiCompat from "@earendil-works/pi-ai/compat";
@@ -10,7 +10,12 @@ import { createJiti } from "jiti/static";
 import * as _bundledTypebox from "typebox";
 import * as _bundledTypeboxCompile from "typebox/compile";
 import * as _bundledTypeboxValue from "typebox/value";
-import type { PermissionsAPI, RegisteredPermissionHook, ToolUsePermissionHook } from "./api.js";
+import type {
+  PermissionSource,
+  PermissionsAPI,
+  RegisteredPermissionHook,
+  ToolUsePermissionHook,
+} from "./api.js";
 
 export type PermissionModuleFactory = (api: PermissionsAPI) => void | Promise<void>;
 
@@ -35,19 +40,24 @@ export interface LoadedPermissionHooks {
 }
 
 export interface PermissionLoadError {
+  source: PermissionSource;
   path: string;
   error: string;
 }
 
-interface PermissionModuleCandidate {
+export interface PermissionModuleCandidate {
+  source: PermissionSource;
   path: string;
   permissionRoot: string;
 }
 
-export async function loadPermissionHooksFromDir(dir: string): Promise<LoadedPermissionHooks> {
+export async function loadPermissionHooksFromDir(
+  dir: string,
+  source: PermissionSource,
+): Promise<LoadedPermissionHooks> {
   if (!existsSync(dir)) return { hooks: [], errors: [] };
 
-  const candidates = discoverPermissionModules(dir);
+  const candidates = discoverPermissionModules(dir, source);
   const allHooks: RegisteredPermissionHook[] = [];
   const errors: PermissionLoadError[] = [];
 
@@ -60,7 +70,25 @@ export async function loadPermissionHooksFromDir(dir: string): Promise<LoadedPer
   return { hooks: allHooks, errors };
 }
 
-function discoverPermissionModules(dir: string): PermissionModuleCandidate[] {
+export async function loadPermissionHooksFromCandidates(
+  candidates: PermissionModuleCandidate[],
+): Promise<LoadedPermissionHooks> {
+  const allHooks: RegisteredPermissionHook[] = [];
+  const errors: PermissionLoadError[] = [];
+
+  for (const candidate of candidates) {
+    const result = await loadPermissionModule(candidate);
+    allHooks.push(...result.hooks);
+    errors.push(...result.errors);
+  }
+
+  return { hooks: allHooks, errors };
+}
+
+export function discoverPermissionModules(
+  dir: string,
+  source: PermissionSource,
+): PermissionModuleCandidate[] {
   const entries = readdirSync(dir, { withFileTypes: true });
   const candidates: PermissionModuleCandidate[] = [];
 
@@ -68,7 +96,7 @@ function discoverPermissionModules(dir: string): PermissionModuleCandidate[] {
     const entryPath = join(dir, entry.name);
 
     if (entry.isFile() && isLoadableModuleFile(entry.name)) {
-      candidates.push({ path: entryPath, permissionRoot: dir });
+      candidates.push({ source, path: entryPath, permissionRoot: dir });
       continue;
     }
 
@@ -78,7 +106,7 @@ function discoverPermissionModules(dir: string): PermissionModuleCandidate[] {
     if (!existsSync(manifestPath)) continue;
 
     for (const modulePath of readPackagePermissionEntries(manifestPath)) {
-      candidates.push({ path: resolve(entryPath, modulePath), permissionRoot: entryPath });
+      candidates.push({ source, path: resolve(entryPath, modulePath), permissionRoot: entryPath });
     }
   }
 
@@ -94,7 +122,13 @@ async function loadPermissionModule(
   if (!existsSync(candidate.path) || !statSync(candidate.path).isFile()) {
     return {
       hooks,
-      errors: [{ path: candidate.path, error: "Permission module file does not exist" }],
+      errors: [
+        {
+          source: candidate.source,
+          path: candidate.path,
+          error: "Permission module file does not exist",
+        },
+      ],
     };
   }
 
@@ -110,7 +144,11 @@ async function loadPermissionModule(
       return {
         hooks,
         errors: [
-          { path: candidate.path, error: "Permission module must default-export a function" },
+          {
+            source: candidate.source,
+            path: candidate.path,
+            error: "Permission module must default-export a function",
+          },
         ],
       };
     }
@@ -128,6 +166,7 @@ async function loadPermissionModule(
       hooks,
       errors: [
         {
+          source: candidate.source,
           path: candidate.path,
           error: error instanceof Error ? error.message : String(error),
         },
@@ -142,6 +181,7 @@ function registerHook(
 ): RegisteredPermissionHook {
   return {
     ...hook,
+    source: candidate.source,
     permissionRoot: candidate.permissionRoot,
     modulePath: candidate.path,
   };
@@ -169,7 +209,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function getPermissionModuleAliases(): Record<string, string> {
   return {
-    "pi-permissions": fileURLToPath(new URL("./index.ts", import.meta.url)),
+    "@thurstonsand/pi-permissions": fileURLToPath(new URL("./index.ts", import.meta.url)),
   };
 }
 
@@ -177,8 +217,4 @@ function isLoadableModuleFile(name: string): boolean {
   return (
     name.endsWith(".ts") || name.endsWith(".js") || name.endsWith(".mjs") || name.endsWith(".cjs")
   );
-}
-
-export function permissionRootForPath(path: string): string {
-  return dirname(path);
 }

@@ -40,7 +40,10 @@ export function request(prompt?: PermissionRequestPrompt): PermissionDecision {
   return prompt ? { decision: "request", prompt } : { decision: "request" };
 }
 
+export type PermissionSource = "project" | "user" | `package:${string}`;
+
 export interface RegisteredPermissionHook extends ToolUsePermissionHook {
+  source: PermissionSource;
   permissionRoot: string;
   modulePath: string;
 }
