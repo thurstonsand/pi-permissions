@@ -2,6 +2,23 @@
 
 # Release notes
 
+## 0.5.0
+
+Simplifies permission hook authoring and adds request prompt highlights.
+
+### Breaking
+
+- Removed the `matcher` field from permission hooks. Handlers should return `undefined` when a tool call is not relevant.
+
+### Added
+
+- Added request prompt highlights through `highlight` on `request()` prompts.
+- Added `highlightSpans()` for resolving literal, RegExp, and callback-based highlight spans.
+
+### Changed
+
+- Updated README examples to use handler-based filtering and highlight offending command fragments.
+
 ## 0.4.0
 
 Tracks permission enablement per hook instead of a single global switch.
