@@ -267,9 +267,17 @@ Rejecting blocks the tool. A rejection with a note tells the agent how to procee
 
 ## Managing permissions
 
-Use `/permissions` to see loaded hooks and whether permission checks are enabled.
+Use `/permissions` to review loaded hooks and choose which permission checks are enabled in the current session branch.
 
 ![Permissions summary](images/permissions-summary.png)
+
+Inside the permissions modal:
+
+- `j`/`k` or arrow keys navigate
+- `space` toggles the selected permission
+- `g` toggles all currently loaded permissions
+- `enter` saves and closes
+- `esc` closes without saving
 
 Commands:
 
@@ -277,9 +285,13 @@ Commands:
 /permissions
 /permissions enable
 /permissions disable
+/permissions enable Git mutations
+/permissions disable Git mutations
 ```
 
-You can also toggle via `Alt+P`, customizable in `~/.pi/agent/settings.json`:
+`/permissions enable` and `/permissions disable` apply to all permissions.
+
+You can also toggle all currently loaded permissions via `Alt+P`, customizable in `~/.pi/agent/settings.json`:
 
 ```json
 {

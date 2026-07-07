@@ -53,12 +53,14 @@ export function formatHumanFacingPermissionPrompt(input: PermissionPromptInput):
 }
 
 export function formatAgentFacingApprovalNote({ name, note }: ApprovalNote): string {
-  return `The user approved this tool use (${name}) and provided additional context for how to proceed:
+  return `Approved by user via permission hook ${name}
+
+The user approved this tool use and provided additional context for how to proceed:
 ${note}`;
 }
 
 export function formatAgentFacingBlockReason(name: string, reason: string): string {
-  return `Blocked by permission rule (${name})
+  return `Blocked by permission hook ${name}
 
 ${reason}`;
 }
@@ -68,11 +70,11 @@ export function formatAgentFacingNoUiReason(input: PermissionPromptInput): strin
 }
 
 export function formatAgentFacingRejectionReason(name: string, note?: string): string {
-  const blocked = `Blocked by user (${name})`;
+  const blocked = `Blocked by user via permission hook ${name}`;
   if (!note) return blocked;
 
-  return `Blocked by user (${name})
+  return `${blocked}
 
-The user doesn't want to proceed with this tool use (${name}), and it was rejected. To tell you how to proceed, the user said:
+The user doesn't want to proceed with this tool use, and it was rejected. To proceed, the user said:
 ${note}`;
 }

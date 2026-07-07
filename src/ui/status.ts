@@ -1,12 +1,22 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+  getPermissionEnablementStatus,
+  type PermissionEnablement,
+  type RuntimePermissionHook,
+} from "../enablement.js";
 
-export function syncPermissionsStatus(ctx: ExtensionContext, enabled: boolean): void {
+export function syncPermissionsStatus(
+  ctx: ExtensionContext,
+  hooks: readonly RuntimePermissionHook[],
+  enablement: PermissionEnablement,
+): void {
   if (!ctx.hasUI) return;
 
+  const status = getPermissionEnablementStatus(hooks, enablement);
+  const color =
+    status.total === 0 ? "muted" : status.active === status.total ? "accent" : "warning";
   ctx.ui.setStatus(
     "permissions",
-    enabled
-      ? ctx.ui.theme.fg("accent", "permissions:on")
-      : ctx.ui.theme.fg("warning", "permissions:off"),
+    ctx.ui.theme.fg(color, `permissions:${status.active}/${status.total}`),
   );
 }

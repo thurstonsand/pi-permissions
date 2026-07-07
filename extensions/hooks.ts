@@ -3,6 +3,7 @@ import type {
   ExtensionContext,
   ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
+import { getEnabledPermissionHooks } from "../src/enablement.js";
 import { evaluatePermissionHooks } from "../src/evaluator.js";
 import type { PendingApprovalNotes } from "../src/pending-approvals.js";
 import {
@@ -28,10 +29,10 @@ export function registerPermissionHooks(
 ): void {
   async function restoreSession(ctx: ExtensionContext): Promise<void> {
     pendingApprovalNotes.discardOutstandingNotes();
-    state.enabled = restorePermissionsState(ctx);
     const loaded = await loadRuntimeHooks(ctx);
     state.hooks = loaded.hooks;
-    syncPermissionsStatus(ctx, state.enabled);
+    state.enablement = restorePermissionsState(ctx, state.hooks);
+    syncPermissionsStatus(ctx, state.hooks, state.enablement);
     notifyLoadErrors(ctx, loaded.errors);
   }
 
@@ -56,12 +57,13 @@ export function registerPermissionHooks(
   });
 
   pi.on("tool_call", async (event, ctx) => {
-    if (!state.enabled) return undefined;
-
-    const evaluation = await evaluatePermissionHooks(state.hooks, {
-      cwd: ctx.cwd,
-      tool: permissionToolInputFromToolCall(event, ctx.cwd),
-    });
+    const evaluation = await evaluatePermissionHooks(
+      getEnabledPermissionHooks(state.hooks, state.enablement),
+      {
+        cwd: ctx.cwd,
+        tool: permissionToolInputFromToolCall(event, ctx.cwd),
+      },
+    );
     if (!evaluation) return undefined;
 
     const { hook, input, decision } = evaluation;

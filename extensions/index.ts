@@ -8,7 +8,7 @@ import { loadSettings } from "./shared/settings.js";
 
 export default function permissions(pi: ExtensionAPI): void {
   const state: PermissionsRuntimeState = {
-    enabled: true,
+    enablement: {},
     hooks: [],
   };
   const settings = loadSettings();

@@ -8,6 +8,11 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import type { RegisteredPermissionHook } from "../src/api.js";
+import {
+  assignPermissionHookIds,
+  type PermissionEnablement,
+  type RuntimePermissionHook,
+} from "../src/enablement.js";
 import { loadPermissionHooksFromDir, type PermissionLoadError } from "../src/loader.js";
 import {
   loadPermissionHooksFromPackages,
@@ -15,12 +20,12 @@ import {
 } from "../src/package-loader.js";
 
 export interface PermissionsRuntimeState {
-  enabled: boolean;
-  hooks: RegisteredPermissionHook[];
+  enablement: PermissionEnablement;
+  hooks: RuntimePermissionHook[];
 }
 
 export interface LoadedPermissionsRuntime {
-  hooks: RegisteredPermissionHook[];
+  hooks: RuntimePermissionHook[];
   errors: PermissionLoadError[];
 }
 
@@ -36,18 +41,21 @@ export async function loadRuntimeHooks(ctx: ExtensionContext): Promise<LoadedPer
 
 async function loadProjectPermissionHooks(
   ctx: ExtensionContext,
-): Promise<LoadedPermissionsRuntime> {
+): Promise<{ hooks: RegisteredPermissionHook[]; errors: PermissionLoadError[] }> {
   if (!ctx.isProjectTrusted()) return { hooks: [], errors: [] };
   return loadPermissionHooksFromDir(join(ctx.cwd, CONFIG_DIR_NAME, "permissions"), "project");
 }
 
-async function loadUserPermissionHooks(): Promise<LoadedPermissionsRuntime> {
+async function loadUserPermissionHooks(): Promise<{
+  hooks: RegisteredPermissionHook[];
+  errors: PermissionLoadError[];
+}> {
   return loadPermissionHooksFromDir(getUserPermissionsDir(), "user");
 }
 
 async function loadPackagePermissionHooks(
   ctx: ExtensionContext,
-): Promise<LoadedPermissionsRuntime> {
+): Promise<{ hooks: RegisteredPermissionHook[]; errors: PermissionLoadError[] }> {
   const settingsManager = SettingsManager.create(ctx.cwd, getAgentDir(), {
     projectTrusted: ctx.isProjectTrusted(),
   });
@@ -63,10 +71,10 @@ async function loadPackagePermissionHooks(
 }
 
 function combineLoadedPermissionHooks(
-  results: LoadedPermissionsRuntime[],
+  results: Array<{ hooks: RegisteredPermissionHook[]; errors: PermissionLoadError[] }>,
 ): LoadedPermissionsRuntime {
   return {
-    hooks: results.flatMap((result) => result.hooks),
+    hooks: assignPermissionHookIds(results.flatMap((result) => result.hooks)),
     errors: results.flatMap((result) => result.errors),
   };
 }
