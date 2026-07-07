@@ -45,17 +45,19 @@ import {
   type PermissionsAPI,
 } from "@thurstonsand/pi-permissions";
 
+const GIT_COMMIT = /\bgit commit\b/;
+
 export default function permissions(api: PermissionsAPI) {
   api.onToolUse({
     name: "git commit",
     description: "Ask before the agent creates a commit.",
-    matcher: "bash",
     handler(input) {
       return matchTool(input.tool, {
         bash(tool) {
-          if (tool.command.includes("git commit")) {
+          if (GIT_COMMIT.test(tool.command)) {
             return request({
               guidance: "Review the commit message before approving.",
+              highlight: GIT_COMMIT,
             });
           }
         },
@@ -69,22 +71,7 @@ Each hook has:
 
 - `name`: short label shown in prompts and logs
 - `description`: explanation shown to the approver if a request is made
-- `matcher`: which tool(s) will this check apply to
 - `handler`: code that returns a decision, or returns nothing to keep evaluating other hooks
-
-Matchers can be a tool name, a list of tool names, or a function.
-
-```ts
-import {
-  isBashToolInput,
-  isCustomToolInput,
-} from "@thurstonsand/pi-permissions";
-
-matcher: "bash";
-matcher: ["read", "write"];
-matcher: (input) => isBashToolInput(input.tool);
-matcher: (input) => isCustomToolInput(input.tool, "github_create_release");
-```
 
 Handlers receive a `PermissionInput`:
 
@@ -111,13 +98,16 @@ Decisions are one of:
 return request(); // default request behavior
 return request({
   guidance: "Check the target environment.",
+  highlight: /production|prod-db/i,
   approveLabel: "Approve",
   rejectLabel: "Reject",
 });
 return block("Do not edit generated files directly.");
 ```
 
-`guidance` adds request-specific text to the prompt. `approveLabel` and `rejectLabel` change the button labels for that request.
+`guidance` adds request-specific text to the prompt. `highlight` emphasizes offending fragments of the tool detail with a string, RegExp, array of either, or a callback that returns spans. `approveLabel` and `rejectLabel` change the button labels for that request.
+
+A highlight callback receives the rendered tool detail and returns half-open `{ start, end }` offsets. Use `highlightSpans(detail, pattern)` inside a callback when you need pattern matching plus a little extra filtering.
 
 Useful exports:
 
@@ -127,6 +117,7 @@ Useful exports:
 | `request()`                     | Ask the approver before the tool runs               |
 | `block()`                       | Block the tool with an agent-facing reason          |
 | `matchTool()`                   | Branch on built-in and custom tool inputs           |
+| `highlightSpans()`              | Resolve highlight strings or RegExps to detail spans |
 | `isBashToolInput()`             | Narrow a normalized tool input to Pi's `bash` tool  |
 | `isReadToolInput()`             | Narrow to Pi's `read` tool                          |
 | `isEditToolInput()`             | Narrow to Pi's `edit` tool                          |
@@ -147,15 +138,16 @@ import {
   type PermissionsAPI,
 } from "@thurstonsand/pi-permissions";
 
+const GIT_COMMIT = /\bgit commit\b/;
+
 export default function permissions(api: PermissionsAPI) {
   api.onToolUse({
     name: "git commit",
     description: "The agent should not create commits without approval.",
-    matcher: "bash",
     handler(input) {
       return matchTool(input.tool, {
         bash(tool) {
-          if (tool.command.includes("git commit")) return request();
+          if (GIT_COMMIT.test(tool.command)) return request({ highlight: GIT_COMMIT });
         },
       });
     },
@@ -176,7 +168,6 @@ export default function permissions(api: PermissionsAPI) {
   api.onToolUse({
     name: "read env file",
     description: "Do not expose local secrets to the LLM.",
-    matcher: "read",
     handler(input) {
       return matchTool(input.tool, {
         read(tool) {
@@ -196,7 +187,6 @@ export default function permissions(api: PermissionsAPI) {
 
 ```ts
 import {
-  isCustomToolInput,
   matchTool,
   request,
   type PermissionsAPI,
@@ -206,7 +196,6 @@ export default function permissions(api: PermissionsAPI) {
   api.onToolUse({
     name: "GitHub release",
     description: "Ask before creating a release through pi-mcp-adapter.",
-    matcher: (input) => isCustomToolInput(input.tool, "github_create_release"),
     handler(input) {
       return matchTool(input.tool, {
         custom: {
@@ -257,7 +246,7 @@ An empty `permissions` array disables permissions from that package.
 
 ## Approval prompts
 
-When a hook returns `request()`, Pi shows the approver a prompt before the tool runs.
+When a hook returns `request()`, Pi shows the approver a prompt before the tool runs. If the request includes `highlight`, matching tool-detail fragments render in warning color and bold.
 
 ![Approval prompt](images/approval-prompt.png)
 

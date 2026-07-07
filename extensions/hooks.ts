@@ -73,9 +73,8 @@ export function registerPermissionHooks(
     }
 
     const promptInput: PermissionPromptInput = {
-      name: hook.name,
+      hookName: hook.name,
       description: hook.description,
-      ...(decision.prompt?.guidance ? { guidance: decision.prompt.guidance } : {}),
       toolName: input.tool.toolName,
       toolDetail: input.tool.detail,
       ...(decision.prompt ? { prompt: decision.prompt } : {}),
@@ -88,7 +87,9 @@ export function registerPermissionHooks(
       };
     }
 
-    const prompt = formatHumanFacingPermissionPrompt(promptInput);
+    const prompt = formatHumanFacingPermissionPrompt(promptInput, (fragment) =>
+      ctx.ui.theme.fg("warning", ctx.ui.theme.bold(fragment)),
+    );
     pi.events.emit("glimpseui:attention:request", {
       attentionId: event.toolCallId,
       label: hook.name,
@@ -111,7 +112,7 @@ export function registerPermissionHooks(
 function handlePromptResult(
   ctx: ExtensionContext,
   event: ToolCallEvent,
-  name: string,
+  hookName: string,
   result: PermissionGateResult,
   pendingApprovalNotes: PendingApprovalNotes,
 ): { block: true; reason: string } | undefined {
@@ -119,15 +120,18 @@ function handlePromptResult(
     case "allow":
       if (result.note) {
         ctx.ui.notify(
-          formatHumanFacingApprovalNotification({ name, note: result.note }),
+          formatHumanFacingApprovalNotification({ hookName, note: result.note }),
           "warning",
         );
-        pendingApprovalNotes.rememberForToolResult(event.toolCallId, { name, note: result.note });
+        pendingApprovalNotes.rememberForToolResult(event.toolCallId, {
+          hookName,
+          note: result.note,
+        });
       }
       return undefined;
     case "reject": {
-      const reason = formatAgentFacingRejectionReason(name, result.note);
-      ctx.ui.notify(formatHumanFacingRejectionNotification(name, result.note), "warning");
+      const reason = formatAgentFacingRejectionReason(hookName, result.note);
+      ctx.ui.notify(formatHumanFacingRejectionNotification(hookName, result.note), "warning");
       if (result.abort) {
         setTimeout(() => ctx.abort(), 0);
       }

@@ -1,15 +1,14 @@
 export type {
   PermissionDecision,
   PermissionHandler,
-  PermissionMatcher,
-  PermissionMatcherFunction,
   PermissionRequestPrompt,
   PermissionSource,
   PermissionsAPI,
   ToolUsePermissionHook,
 } from "./api.js";
 export { block, request } from "./api.js";
-export { matchTool, type ToolMatchHandlers } from "./matcher.js";
+export { type HighlightSpan, highlightSpans, type PermissionHighlight } from "./highlight.js";
+export { matchTool, type ToolMatchHandlers } from "./match-tool.js";
 export {
   type BashPermissionToolInput,
   type BuiltInToolName,

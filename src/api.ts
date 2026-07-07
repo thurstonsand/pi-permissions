@@ -1,4 +1,5 @@
-import type { PermissionInput, PermissionToolName } from "./tool-input.js";
+import type { PermissionHighlight } from "./highlight.js";
+import type { PermissionInput } from "./tool-input.js";
 
 export interface PermissionsAPI {
   onToolUse(hook: ToolUsePermissionHook): void;
@@ -7,16 +8,8 @@ export interface PermissionsAPI {
 export interface ToolUsePermissionHook {
   name: string;
   description: string;
-  matcher?: PermissionMatcher;
   handler: PermissionHandler;
 }
-
-export type PermissionMatcher =
-  | PermissionToolName
-  | readonly PermissionToolName[]
-  | PermissionMatcherFunction;
-
-export type PermissionMatcherFunction = (input: PermissionInput) => boolean | Promise<boolean>;
 
 export type PermissionHandler = (
   input: PermissionInput,
@@ -28,6 +21,7 @@ export type PermissionDecision =
 
 export interface PermissionRequestPrompt {
   guidance?: string;
+  highlight?: PermissionHighlight;
   approveLabel?: string;
   rejectLabel?: string;
 }

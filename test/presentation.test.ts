@@ -3,12 +3,42 @@ import {
   formatAgentFacingApprovalNote,
   formatAgentFacingBlockReason,
   formatAgentFacingRejectionReason,
+  formatHumanFacingPermissionPrompt,
 } from "../src/presentation.js";
+
+describe("human-facing permission prompts", () => {
+  it("emphasizes highlighted tool detail fragments only", () => {
+    expect(
+      formatHumanFacingPermissionPrompt(
+        {
+          hookName: "Git interference",
+          description: "Git staging is reserved for the approver.",
+          toolName: "bash",
+          toolDetail: "npm test && git add -A && echo done",
+          prompt: {
+            guidance: "Review the command chain.",
+            highlight: /git add\b/,
+          },
+        },
+        (fragment) => `<<${fragment}>>`,
+      ),
+    ).toEqual({
+      name: "! Authorization required: Git interference",
+      message: `Git staging is reserved for the approver.
+
+Review the command chain.
+
+bash: npm test && <<git add>> -A && echo done`,
+      approveLabel: "Authorize",
+      rejectLabel: "Abort",
+    });
+  });
+});
 
 describe("agent-facing permission messages", () => {
   it("identifies approval notes by permission hook", () => {
     expect(
-      formatAgentFacingApprovalNote({ name: "Git interference", note: "Proceed carefully." }),
+      formatAgentFacingApprovalNote({ hookName: "Git interference", note: "Proceed carefully." }),
     ).toBe(`Approved by user via permission hook Git interference
 
 The user approved this tool use and provided additional context for how to proceed:

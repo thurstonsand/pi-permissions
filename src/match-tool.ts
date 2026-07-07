@@ -1,4 +1,3 @@
-import type { PermissionMatcher } from "./api.js";
 import {
   type BashPermissionToolInput,
   type EditPermissionToolInput,
@@ -12,29 +11,10 @@ import {
   isReadToolInput,
   isWriteToolInput,
   type LsPermissionToolInput,
-  type PermissionInput,
   type PermissionToolInput,
-  type PermissionToolName,
   type ReadPermissionToolInput,
   type WritePermissionToolInput,
 } from "./tool-input.js";
-
-export async function matchesPermissionInput(
-  matcher: PermissionMatcher | undefined,
-  input: PermissionInput,
-): Promise<boolean> {
-  if (!matcher) return true;
-
-  if (typeof matcher === "string") {
-    return input.tool.toolName === matcher;
-  }
-
-  if (isToolNameArray(matcher)) {
-    return matcher.includes(input.tool.toolName);
-  }
-
-  return matcher(input);
-}
 
 export type ToolMatchResult<T> = T | Promise<T>;
 
@@ -63,8 +43,4 @@ export function matchTool<T>(
   if (isLsToolInput(tool)) return handlers.ls?.(tool) ?? handlers.default?.(tool);
 
   return handlers.custom?.[tool.toolName]?.(tool) ?? handlers.default?.(tool);
-}
-
-function isToolNameArray(value: PermissionMatcher): value is readonly PermissionToolName[] {
-  return Array.isArray(value);
 }

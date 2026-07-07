@@ -1,5 +1,4 @@
 import type { PermissionRequestPrompt, RegisteredPermissionHook } from "./api.js";
-import { matchesPermissionInput } from "./matcher.js";
 import type { PermissionInput, PermissionToolInput } from "./tool-input.js";
 
 export type TerminalPermissionDecision =
@@ -26,8 +25,6 @@ export async function evaluatePermissionHooks(
       ...input,
       permissionRoot: hook.permissionRoot,
     };
-
-    if (!(await matchesPermissionInput(hook.matcher, hookInput))) continue;
 
     const decision = await hook.handler(hookInput);
     if (!decision) continue;

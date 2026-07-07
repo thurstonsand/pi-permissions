@@ -10,10 +10,10 @@
 - Trusted directory: Pi concept that determines if Pi, and by extension this extension, loads settings that are present in a project/directory
 - Permission hook: A registered check that can inspect one tool call and return a permission decision
 - Enabled: Whether a permission hook is active for evaluation in the current session branch; newly seen hooks default to enabled
-- Matcher: The part of a permission hook that selects which tool calls the hook should inspect
 - Permission decision: The terminal result of a permission hook: block or request; hooks return `undefined` when they do not decide
 - Request: A permission decision that asks the Approver whether a tool call should proceed
 - Guidance: Optional request-specific text an Author adds to a prompt in addition to the hook description
+- Highlight: Optional patterns or span-producing callbacks a request provides to emphasize the offending fragment of the tool detail in a prompt
 - Prompt: The text and labels shown to the Approver for a request, in totality
 - Permission root: The directory that contains the permission module or permission package currently handling a hook
 - Custom tool: A non-built-in Pi tool registered by an extension
