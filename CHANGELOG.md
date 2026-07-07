@@ -2,6 +2,21 @@
 
 # Release notes
 
+## 0.4.0
+
+Tracks permission enablement per hook instead of a single global switch.
+
+### Added
+
+- Added per-hook enablement: enable or disable individual permission hooks for the current session branch.
+- Added an interactive `/permissions` modal with keyboard navigation, scrolling, draft edits, and save/cancel.
+- Added targeted `/permissions enable <name>` and `/permissions disable <name>` for a single hook by exact, case-insensitive name.
+
+### Changed
+
+- `/permissions enable`, `/permissions disable`, and the `Alt+P` shortcut now apply to all currently loaded hooks, and the footer shows the active/loaded count (for example `permissions:3/5`).
+- Agent-facing approval, block, and rejection messages now name the permission hook consistently.
+
 ## 0.3.0
 
 Adds package-level permission hooks.

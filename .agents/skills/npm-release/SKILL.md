@@ -11,8 +11,8 @@ Use this skill when preparing and publishing a new release for `pi-permissions`.
 
 - Release from `main`.
 - npm publishing is tag-driven through `.github/workflows/release.yml`.
-- Use `RELEASE.md` for human release notes.
-- Use the exact same release-note text from `RELEASE.md` for the annotated git tag body.
+- Use `CHANGELOG.md` for human release notes.
+- Use the exact same release-note text from `CHANGELOG.md` for the annotated git tag body.
 - Stable releases are `vX.Y.Z` tags.
 - Stable package tags are immutable. Never force-push a stable release tag.
 - The GitHub Action uses npm Trusted Publishing through OIDC.
@@ -32,7 +32,7 @@ Ask the user to confirm the target version unless they already specified it.
 
 ## 2. Prepare release notes
 
-Update `RELEASE.md` with a new top entry:
+Update `CHANGELOG.md` with a new top entry:
 
 ```md
 ## X.Y.Z
@@ -79,7 +79,7 @@ Push the release prep commit to `main`
 
 ## 6. Create and push the stable tag
 
-Use the final `RELEASE.md` entry for the tag notes:
+Use the final `CHANGELOG.md` entry for the tag notes:
 
 ```sh
 VERSION=X.Y.Z

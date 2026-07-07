@@ -4,10 +4,10 @@
 
 ## Release flow
 
-1. Prepare `RELEASE.md` with a new `## X.Y.Z` entry.
+1. Prepare `CHANGELOG.md` with a new `## X.Y.Z` entry.
 2. Verify locally with `mise run check` and `npm pack --dry-run`.
 3. Commit the release prep.
-4. Create an annotated `vX.Y.Z` tag using the matching `RELEASE.md` entry as the tag body.
+4. Create an annotated `vX.Y.Z` tag using the matching `CHANGELOG.md` entry as the tag body.
 5. Push `main` and the tag.
 6. The `Release` workflow runs CI, sets the package version from the tag, packs the package, and publishes it to npm with the `latest` dist-tag.
 
