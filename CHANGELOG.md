@@ -2,6 +2,14 @@
 
 # Release notes
 
+## 0.7.0
+
+Adds predicate-based command matching for bash permission rules.
+
+### Added
+
+- Added `where` to `matchCommand()`'s `CommandSpec` — an arbitrary `(command) => boolean` predicate that narrows matches alongside `subcommands`.
+
 ## 0.6.0
 
 Adds structural shell command parsing for bash permission rules.
