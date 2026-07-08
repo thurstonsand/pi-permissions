@@ -2,18 +2,19 @@
 
 # Release notes
 
-## Unreleased
+## 0.6.0
 
 Adds structural shell command parsing for bash permission rules.
 
 ### Added
 
-- Added `parseShellCommand()`, `matchCommand()`, and `gitValueFlags` for span-carrying bash command parsing and program/subcommand matching.
+- Added `parseShellCommand()`, `matchCommand()`, and `gitValueFlags` for bash command parsing and program/subcommand matching.
 - Added precomputed highlight span arrays as a `request({ highlight })` option.
 
 ### Changed
 
 - Permission hook evaluation now skips a throwing hook, continues evaluating later hooks, and reports the failure as a warning notification.
+- Added `tree-sitter-bash` and `web-tree-sitter` as dependencies for shell command parsing.
 
 ## 0.5.0
 
