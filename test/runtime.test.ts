@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import { registerPermissionHooks } from "../extensions/hooks.js";
 import { getUserPermissionsDir } from "../extensions/runtime.js";
-import { assignPermissionHookIds } from "../src/enablement.js";
+import { assignPermissionHookIds, type RuntimePermissionHook } from "../src/enablement.js";
 import { restorePermissionsState } from "../src/state.js";
 
 const originalUserDir = process.env.PI_PERMISSIONS_USER_DIR;
@@ -15,6 +16,50 @@ describe("permission directory overrides", () => {
     process.env.PI_PERMISSIONS_USER_DIR = "/tmp/user-permissions";
 
     expect(getUserPermissionsDir()).toBe("/tmp/user-permissions");
+  });
+});
+
+describe("runtime hook notifications", () => {
+  it("notifies each failing hook once per restored session", async () => {
+    const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>();
+    const notifications: string[] = [];
+    const hooks: RuntimePermissionHook[] = [
+      {
+        id: "broken#0",
+        name: "broken",
+        description: "throws",
+        source: "user",
+        permissionRoot: "/permissions",
+        modulePath: "/permissions/broken.ts",
+        handler: () => {
+          throw new Error("boom");
+        },
+      },
+    ];
+
+    registerPermissionHooks(
+      {
+        on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
+          handlers.set(event, handler);
+        },
+        events: { emit: () => undefined },
+      } as never,
+      { hooks, enablement: {} },
+      { discardOutstandingNotes: () => undefined, consumeForToolResult: () => undefined } as never,
+    );
+
+    const ctx = {
+      cwd: "/repo",
+      hasUI: true,
+      ui: { notify: (message: string) => notifications.push(message) },
+    };
+    const event = { toolName: "bash", input: { command: "npm test" } };
+
+    await handlers.get("tool_call")?.(event, ctx);
+    await handlers.get("tool_call")?.(event, ctx);
+
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toContain("Permission hook broken failed");
   });
 });
 

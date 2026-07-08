@@ -7,6 +7,7 @@ export type PermissionHighlight =
   | string
   | RegExp
   | readonly (string | RegExp)[]
+  | readonly HighlightSpan[]
   | ((detail: string) => readonly HighlightSpan[]);
 
 export function highlightSpans(detail: string, highlight: PermissionHighlight): HighlightSpan[] {
@@ -18,11 +19,30 @@ export function highlightSpans(detail: string, highlight: PermissionHighlight): 
     }
   }
 
-  const patterns = Array.isArray(highlight) ? highlight : [highlight];
+  const items: readonly unknown[] = Array.isArray(highlight) ? highlight : [highlight];
+  if (isSpanArray(items)) return normalizeHighlightSpans(items, detail.length);
+  if (!isPatternArray(items)) return [];
+
   return normalizeHighlightSpans(
-    patterns.flatMap((pattern) => patternSpans(detail, pattern)),
+    items.flatMap((pattern) => patternSpans(detail, pattern)),
     detail.length,
   );
+}
+
+function isSpanArray(items: readonly unknown[]): items is readonly HighlightSpan[] {
+  return items.every(
+    (item) =>
+      typeof item === "object" &&
+      item !== null &&
+      "start" in item &&
+      "end" in item &&
+      typeof item.start === "number" &&
+      typeof item.end === "number",
+  );
+}
+
+function isPatternArray(items: readonly unknown[]): items is readonly (string | RegExp)[] {
+  return items.every((item) => typeof item === "string" || item instanceof RegExp);
 }
 
 function patternSpans(detail: string, pattern: string | RegExp): HighlightSpan[] {

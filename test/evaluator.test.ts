@@ -57,8 +57,9 @@ describe("evaluatePermissionHooks", () => {
       tool: bashInput.tool,
     });
 
-    expect(result?.hook.name).toBe("fallback");
-    expect(result?.decision).toEqual({ decision: "request" });
+    expect(result.evaluation?.hook.name).toBe("fallback");
+    expect(result.evaluation?.decision).toEqual({ decision: "request" });
+    expect(result.failures).toEqual([]);
   });
 
   it("continues after undefined and stops at the first terminal decision", async () => {
@@ -97,7 +98,39 @@ describe("evaluatePermissionHooks", () => {
       tool: readInput.tool,
     });
 
-    expect(result?.hook.name).toBe("second");
-    expect(result?.decision).toEqual({ decision: "block", reason: "blocked" });
+    expect(result.evaluation?.hook.name).toBe("second");
+    expect(result.evaluation?.decision).toEqual({ decision: "block", reason: "blocked" });
+  });
+
+  it("skips throwing hooks and reports the failures", async () => {
+    const hooks: RegisteredPermissionHook[] = [
+      {
+        name: "broken",
+        description: "throws",
+        source: "user",
+        permissionRoot: "/user/permissions",
+        modulePath: "/user/permissions/broken.ts",
+        handler: () => {
+          throw new Error("boom");
+        },
+      },
+      {
+        name: "decider",
+        description: "continues",
+        source: "user",
+        permissionRoot: "/user/permissions",
+        modulePath: "/user/permissions/decider.ts",
+        handler: () => ({ decision: "request" }),
+      },
+    ];
+
+    const result = await evaluatePermissionHooks(hooks, {
+      cwd: bashInput.cwd,
+      tool: bashInput.tool,
+    });
+
+    expect(result.evaluation?.hook.name).toBe("decider");
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]?.hook.name).toBe("broken");
   });
 });

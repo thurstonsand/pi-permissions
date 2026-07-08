@@ -29,6 +29,23 @@ describe("highlightSpans", () => {
     expect(highlightSpans("abcdef", ["abc", /cde/, "f"])).toEqual([{ start: 0, end: 6 }]);
   });
 
+  it("accepts precomputed spans", () => {
+    expect(
+      highlightSpans("npm test && git add -A", [
+        { start: 12, end: 15 },
+        { start: 16, end: 100 },
+        { start: 4, end: 4 },
+      ]),
+    ).toEqual([
+      { start: 12, end: 15 },
+      { start: 16, end: 22 },
+    ]);
+  });
+
+  it("rejects mixed pattern and span arrays", () => {
+    expect(highlightSpans("git add", ["git", { start: 4, end: 7 }] as never)).toEqual([]);
+  });
+
   it("uses callback spans as the escape hatch", () => {
     expect(
       highlightSpans("npm test && git add -A", (detail) => [

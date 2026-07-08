@@ -105,7 +105,7 @@ return request({
 return block("Do not edit generated files directly.");
 ```
 
-`guidance` adds request-specific text to the prompt. `highlight` emphasizes offending fragments of the tool detail with a string, RegExp, array of either, or a callback that returns spans. `approveLabel` and `rejectLabel` change the button labels for that request.
+`guidance` adds request-specific text to the prompt. `highlight` emphasizes offending fragments of the tool detail with a string, RegExp, array of either, precomputed spans, or a callback that returns spans. `approveLabel` and `rejectLabel` change the button labels for that request.
 
 A highlight callback receives the rendered tool detail and returns half-open `{ start, end }` offsets. Use `highlightSpans(detail, pattern)` inside a callback when you need pattern matching plus a little extra filtering.
 
@@ -117,7 +117,10 @@ Useful exports:
 | `request()`                     | Ask the approver before the tool runs               |
 | `block()`                       | Block the tool with an agent-facing reason          |
 | `matchTool()`                   | Branch on built-in and custom tool inputs           |
-| `highlightSpans()`              | Resolve highlight strings or RegExps to detail spans |
+| `highlightSpans()`              | Resolve highlight strings, RegExps, and spans       |
+| `parseShellCommand()`           | Parse bash into span-carrying simple commands       |
+| `matchCommand()`                | Match bash invocations by program and subcommand    |
+| `gitValueFlags`                 | Git value-taking flags for subcommand resolution    |
 | `isBashToolInput()`             | Narrow a normalized tool input to Pi's `bash` tool  |
 | `isReadToolInput()`             | Narrow to Pi's `read` tool                          |
 | `isEditToolInput()`             | Narrow to Pi's `edit` tool                          |
@@ -128,6 +131,80 @@ Useful exports:
 | `isCustomToolInput(tool, name)` | Narrow to an extension/custom Pi tool by exact name |
 
 ## Examples
+
+### Ask before git mutations
+
+```ts
+import {
+  gitValueFlags,
+  matchCommand,
+  matchTool,
+  request,
+  type PermissionsAPI,
+} from "@thurstonsand/pi-permissions";
+
+const gitMutations = matchCommand({
+  program: "git",
+  subcommands: [
+    "add",
+    "commit",
+    "push",
+    "checkout",
+    "reset",
+    "clean",
+    "rebase",
+  ],
+  valueFlags: gitValueFlags,
+  onMatch: (match) => request({ highlight: match.spans }),
+});
+
+export default function permissions(api: PermissionsAPI) {
+  api.onToolUse({
+    name: "git mutations",
+    description: "Ask before the agent mutates git state.",
+    handler(input) {
+      return matchTool(input.tool, { bash: gitMutations });
+    },
+  });
+}
+```
+
+`matchCommand()` parses shell structure instead of searching raw text, so `echo "git add"` and `git grep add` stay inert while `command git -C /repo add` is caught.
+
+### Ask before recursive forced removal
+
+```ts
+import {
+  matchTool,
+  parseShellCommand,
+  request,
+  type PermissionsAPI,
+} from "@thurstonsand/pi-permissions";
+
+export default function permissions(api: PermissionsAPI) {
+  api.onToolUse({
+    name: "destructive removal",
+    description: "Ask before recursive forced removal or find deletion.",
+    handler(input) {
+      return matchTool(input.tool, {
+        async bash({ command }) {
+          const hits = (await parseShellCommand(command)).commands.filter(
+            (cmd) =>
+              (cmd.programName === "rm" &&
+                cmd.hasFlag("-r", "-R", "--recursive") &&
+                cmd.hasFlag("-f", "--force")) ||
+              (cmd.programName === "find" && cmd.hasFlag("-delete")),
+          );
+
+          return hits.length
+            ? request({ highlight: hits.map((cmd) => cmd.span) })
+            : undefined;
+        },
+      });
+    },
+  });
+}
+```
 
 ### Ask before `git commit`
 
@@ -147,7 +224,8 @@ export default function permissions(api: PermissionsAPI) {
     handler(input) {
       return matchTool(input.tool, {
         bash(tool) {
-          if (GIT_COMMIT.test(tool.command)) return request({ highlight: GIT_COMMIT });
+          if (GIT_COMMIT.test(tool.command))
+            return request({ highlight: GIT_COMMIT });
         },
       });
     },

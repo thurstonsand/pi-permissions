@@ -2,6 +2,19 @@
 
 # Release notes
 
+## Unreleased
+
+Adds structural shell command parsing for bash permission rules.
+
+### Added
+
+- Added `parseShellCommand()`, `matchCommand()`, and `gitValueFlags` for span-carrying bash command parsing and program/subcommand matching.
+- Added precomputed highlight span arrays as a `request({ highlight })` option.
+
+### Changed
+
+- Permission hook evaluation now skips a throwing hook, continues evaluating later hooks, and reports the failure as a warning notification.
+
 ## 0.5.0
 
 Simplifies permission hook authoring and adds request prompt highlights.

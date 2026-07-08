@@ -17,3 +17,6 @@
 - Prompt: The text and labels shown to the Approver for a request, in totality
 - Permission root: The directory that contains the permission module or permission package currently handling a hook
 - Custom tool: A non-built-in Pi tool registered by an extension
+- Program: The effective executable of a simple command, determined after skipping wrappers and variable assignments
+- Wrapper: A program whose purpose is to run its argument as a command (e.g. `command`, `sudo`, `env`, `xargs`); skipped when determining the program
+- Subcommand: The first non-flag argument of a simple command, after skipping flags that consume a value (e.g. `add` in `git -C /repo add`)

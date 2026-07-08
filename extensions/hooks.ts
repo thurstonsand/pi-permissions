@@ -4,7 +4,7 @@ import type {
   ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
 import { getEnabledPermissionHooks } from "../src/enablement.js";
-import { evaluatePermissionHooks } from "../src/evaluator.js";
+import { evaluatePermissionHooks, type PermissionHookFailure } from "../src/evaluator.js";
 import type { PendingApprovalNotes } from "../src/pending-approvals.js";
 import {
   formatAgentFacingApprovalNote,
@@ -27,8 +27,11 @@ export function registerPermissionHooks(
   state: PermissionsRuntimeState,
   pendingApprovalNotes: PendingApprovalNotes,
 ): void {
+  const notifiedHookFailures = new Set<string>();
+
   async function restoreSession(ctx: ExtensionContext): Promise<void> {
     pendingApprovalNotes.discardOutstandingNotes();
+    notifiedHookFailures.clear();
     const loaded = await loadRuntimeHooks(ctx);
     state.hooks = loaded.hooks;
     state.enablement = restorePermissionsState(ctx, state.hooks);
@@ -57,16 +60,17 @@ export function registerPermissionHooks(
   });
 
   pi.on("tool_call", async (event, ctx) => {
-    const evaluation = await evaluatePermissionHooks(
+    const evaluationResult = await evaluatePermissionHooks(
       getEnabledPermissionHooks(state.hooks, state.enablement),
       {
         cwd: ctx.cwd,
         tool: permissionToolInputFromToolCall(event, ctx.cwd),
       },
     );
-    if (!evaluation) return undefined;
+    notifyHookFailures(ctx, evaluationResult.failures, notifiedHookFailures);
+    if (!evaluationResult.evaluation) return undefined;
 
-    const { hook, input, decision } = evaluation;
+    const { hook, input, decision } = evaluationResult.evaluation;
 
     if (decision.decision === "block") {
       return { block: true, reason: formatAgentFacingBlockReason(hook.name, decision.reason) };
@@ -107,6 +111,24 @@ export function registerPermissionHooks(
 
     return handlePromptResult(ctx, event, hook.name, result, pendingApprovalNotes);
   });
+}
+
+function notifyHookFailures(
+  ctx: ExtensionContext,
+  failures: readonly PermissionHookFailure[],
+  notifiedHookFailures: Set<string>,
+): void {
+  if (!ctx.hasUI) return;
+  for (const failure of failures) {
+    const key = `${failure.hook.modulePath}:${failure.hook.name}`;
+    if (notifiedHookFailures.has(key)) continue;
+    notifiedHookFailures.add(key);
+
+    ctx.ui.notify(
+      `Permission hook ${failure.hook.name} failed: ${String(failure.error)}`,
+      "warning",
+    );
+  }
 }
 
 function handlePromptResult(

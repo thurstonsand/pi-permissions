@@ -10,6 +10,19 @@ export { block, request } from "./api.js";
 export { type HighlightSpan, highlightSpans, type PermissionHighlight } from "./highlight.js";
 export { matchTool, type ToolMatchHandlers } from "./match-tool.js";
 export {
+  type CommandMatch,
+  type CommandSpec,
+  gitValueFlags,
+  matchCommand,
+  type ParsedShellCommand,
+  type ParseShellCommandOptions,
+  parseShellCommand,
+  type ShellToken,
+  type SimpleCommand,
+  type TokenWalkOptions,
+  type WrapperSpec,
+} from "./shell.js";
+export {
   type BashPermissionToolInput,
   type BuiltInToolName,
   type CustomPermissionToolInput,
