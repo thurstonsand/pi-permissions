@@ -44,6 +44,7 @@ export interface CommandSpec {
   subcommands?: readonly string[];
   valueFlags?: readonly string[];
   subcommandPosition?: "first" | "any";
+  where?: (command: SimpleCommand) => boolean;
   strict?: boolean;
   onMatch: (match: CommandMatch) => PermissionDecision | undefined;
 }
@@ -162,6 +163,7 @@ export function matchCommand(
 
       const subcommand = findMatchingSubcommand(command, wantedSubcommands, spec);
       if (wantedSubcommands && !subcommand) continue;
+      if (spec.where && !spec.where(command)) continue;
 
       matches.push(command);
       if (command.program) spans.push(command.program);

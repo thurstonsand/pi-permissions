@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  type CommandMatch,
   gitValueFlags,
   highlightSpans,
   matchCommand,
   parseShellCommand,
   request,
+  type SimpleCommand,
 } from "../src/index.js";
 import type { BashPermissionToolInput } from "../src/tool-input.js";
 
@@ -162,6 +164,28 @@ describe("matchCommand", () => {
     })(bash("git log add"));
 
     expect(decision?.decision).toBe("request");
+  });
+
+  it("narrows matches with a where predicate before onMatch fires", async () => {
+    const spec = {
+      program: ["rm", "find"],
+      where: (command: SimpleCommand) =>
+        command.programName === "rm"
+          ? command.hasFlag("-r", "-R", "--recursive") && command.hasFlag("-f", "--force")
+          : command.hasFlag("-delete"),
+      onMatch: ({ commands }: CommandMatch) =>
+        request({ highlight: commands.map((command) => command.span) }),
+    } as const;
+
+    const kept = await matchCommand(spec)(bash("rm -rf build"));
+    expect(kept?.decision).toBe("request");
+    if (kept?.decision !== "request") throw new Error("Expected request decision");
+    expect(highlightSpans("rm -rf build", kept.prompt?.highlight ?? [])).toEqual([
+      { start: 0, end: 12 },
+    ]);
+
+    const dropped = await matchCommand(spec)(bash("rm build"));
+    expect(dropped).toBeUndefined();
   });
 
   it("requests on parse gaps in strict mode", async () => {

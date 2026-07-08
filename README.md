@@ -119,7 +119,7 @@ Useful exports:
 | `matchTool()`                   | Branch on built-in and custom tool inputs           |
 | `highlightSpans()`              | Resolve highlight strings, RegExps, and spans       |
 | `parseShellCommand()`           | Parse bash into span-carrying simple commands       |
-| `matchCommand()`                | Match bash invocations by program and subcommand    |
+| `matchCommand()`                | Match bash by program, subcommand, or predicate     |
 | `gitValueFlags`                 | Git value-taking flags for subcommand resolution    |
 | `isBashToolInput()`             | Narrow a normalized tool input to Pi's `bash` tool  |
 | `isReadToolInput()`             | Narrow to Pi's `read` tool                          |
@@ -175,36 +175,38 @@ export default function permissions(api: PermissionsAPI) {
 
 ```ts
 import {
+  matchCommand,
   matchTool,
-  parseShellCommand,
   request,
+  type SimpleCommand,
   type PermissionsAPI,
 } from "@thurstonsand/pi-permissions";
+
+function isDestructiveRemoval(cmd: SimpleCommand): boolean {
+  return cmd.programName === "rm"
+    ? cmd.hasFlag("-r", "-R", "--recursive") && cmd.hasFlag("-f", "--force")
+    : cmd.hasFlag("-delete");
+}
+
+const destructiveRemoval = matchCommand({
+  program: ["rm", "find"],
+  where: isDestructiveRemoval,
+  onMatch: ({ commands }) =>
+    request({ highlight: commands.map((cmd) => cmd.span) }),
+});
 
 export default function permissions(api: PermissionsAPI) {
   api.onToolUse({
     name: "destructive removal",
     description: "Ask before recursive forced removal or find deletion.",
     handler(input) {
-      return matchTool(input.tool, {
-        async bash({ command }) {
-          const hits = (await parseShellCommand(command)).commands.filter(
-            (cmd) =>
-              (cmd.programName === "rm" &&
-                cmd.hasFlag("-r", "-R", "--recursive") &&
-                cmd.hasFlag("-f", "--force")) ||
-              (cmd.programName === "find" && cmd.hasFlag("-delete")),
-          );
-
-          return hits.length
-            ? request({ highlight: hits.map((cmd) => cmd.span) })
-            : undefined;
-        },
-      });
+      return matchTool(input.tool, { bash: destructiveRemoval });
     },
   });
 }
 ```
+
+`where` narrows matches by an arbitrary predicate the same way `subcommands` narrows by name; `onMatch` only fires when at least one command passes all filters.
 
 ### Ask before `git commit`
 
