@@ -2,6 +2,12 @@
 
 # Release notes
 
+## 0.7.1
+
+### Changed
+
+- Pinned `web-tree-sitter` to `0.26.8`.
+
 ## 0.7.0
 
 Adds predicate-based command matching for bash permission rules.
