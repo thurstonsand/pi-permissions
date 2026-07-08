@@ -2,6 +2,12 @@
 
 # Release notes
 
+## 0.7.2
+
+### Changed
+
+- Pinned `node-addon-api` to `8.8.0`.
+
 ## 0.7.1
 
 ### Changed
