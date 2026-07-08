@@ -2,6 +2,12 @@
 
 # Release notes
 
+## 0.7.3
+
+### Fixed
+
+- Multi-line highlight spans now keep their emphasis color on every wrapped line instead of only the first.
+
 ## 0.7.2
 
 ### Changed
