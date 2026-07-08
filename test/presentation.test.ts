@@ -33,6 +33,30 @@ bash: npm test && <<git add>> -A && echo done`,
       rejectLabel: "Abort",
     });
   });
+
+  it("emphasizes each line of a multi-line span independently", () => {
+    const { message } = formatHumanFacingPermissionPrompt(
+      {
+        hookName: "Git interference",
+        description: "tampering with repository state or history",
+        toolName: "bash",
+        toolDetail: "cat <<EOF\nfeat: change\nEOF\ngit commit -F msg",
+        prompt: {
+          highlight: [{ start: 0, end: "cat <<EOF\nfeat: change\nEOF\ngit commit -F msg".length }],
+        },
+      },
+      (fragment) => `<<${fragment}>>`,
+    );
+
+    expect(message).toBe(
+      `tampering with repository state or history
+
+bash: <<cat <<EOF>>
+<<feat: change>>
+<<EOF>>
+<<git commit -F msg>>`,
+    );
+  });
 });
 
 describe("agent-facing permission messages", () => {

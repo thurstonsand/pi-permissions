@@ -88,11 +88,21 @@ function formatHighlightedDetail(
 
   for (const span of spans) {
     output += detail.slice(cursor, span.start);
-    output += emphasize(detail.slice(span.start, span.end));
+    output += emphasizePerLine(detail.slice(span.start, span.end), emphasize);
     cursor = span.end;
   }
 
   return output + detail.slice(cursor);
+}
+
+// A single emphasized fragment must never span a newline: the theme's foreground
+// color is applied once and is not re-opened per line, so the prompt overlay
+// (which splits on newlines) would drop the color on every line after the first.
+function emphasizePerLine(fragment: string, emphasize: PermissionPromptEmphasis): string {
+  return fragment
+    .split("\n")
+    .map((line) => (line ? emphasize(line) : line))
+    .join("\n");
 }
 
 export function formatAgentFacingApprovalNote({ hookName, note }: ApprovalNote): string {
