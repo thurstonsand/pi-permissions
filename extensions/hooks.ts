@@ -1,17 +1,20 @@
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-  ToolCallEvent,
+import {
+  type BashToolCallEvent,
+  type ExtensionAPI,
+  type ExtensionContext,
+  isToolCallEventType,
+  type ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
 import { getEnabledPermissionHooks } from "../src/enablement.js";
 import { evaluatePermissionHooks, type PermissionHookFailure } from "../src/evaluator.js";
 import type { PendingApprovalNotes } from "../src/pending-approvals.js";
 import {
-  formatAgentFacingApprovalNote,
   formatAgentFacingBlockReason,
   formatAgentFacingNoUiReason,
   formatAgentFacingRejectionReason,
+  formatAgentFacingToolResultNote,
   formatHumanFacingApprovalNotification,
+  formatHumanFacingEditNotification,
   formatHumanFacingPermissionPrompt,
   formatHumanFacingRejectionNotification,
   type PermissionPromptInput,
@@ -52,7 +55,7 @@ export function registerPermissionHooks(
       content: [
         {
           type: "text" as const,
-          text: formatAgentFacingApprovalNote(approval),
+          text: `${formatAgentFacingToolResultNote(approval)}\n`,
         },
         ...event.content,
       ],
@@ -73,7 +76,10 @@ export function registerPermissionHooks(
     const { hook, input, decision } = evaluationResult.evaluation;
 
     if (decision.decision === "block") {
-      return { block: true, reason: formatAgentFacingBlockReason(hook.name, decision.reason) };
+      return {
+        block: true,
+        reason: formatAgentFacingBlockReason(hook.name, decision.reason),
+      };
     }
 
     const promptInput: PermissionPromptInput = {
@@ -91,25 +97,39 @@ export function registerPermissionHooks(
       };
     }
 
-    const prompt = formatHumanFacingPermissionPrompt(promptInput, (fragment) =>
-      ctx.ui.theme.fg("warning", ctx.ui.theme.bold(fragment)),
-    );
+    const prompt = formatHumanFacingPermissionPrompt(promptInput);
     pi.events.emit("glimpseui:attention:request", {
       attentionId: event.toolCallId,
       label: hook.name,
     });
 
+    const bashEvent = isToolCallEventType("bash", event) ? event : undefined;
+    const editable = bashEvent ? { command: bashEvent.input.command } : undefined;
+
     let result: Awaited<ReturnType<typeof showPermissionGate>>;
     try {
-      result = await showPermissionGate(ctx, prompt.name, prompt.message, {
-        approveLabel: prompt.approveLabel,
-        rejectLabel: prompt.rejectLabel,
+      result = await showPermissionGate(ctx, {
+        name: prompt.name,
+        header: prompt.header,
+        toolName: promptInput.toolName,
+        detail: promptInput.toolDetail,
+        ...(promptInput.prompt?.highlight !== undefined
+          ? { highlight: promptInput.prompt.highlight }
+          : {}),
+        labels: {
+          approveLabel: prompt.approveLabel,
+          editLabel: prompt.editLabel,
+          rejectLabel: prompt.rejectLabel,
+        },
+        ...(editable ? { editable } : {}),
       });
     } finally {
-      pi.events.emit("glimpseui:attention:resolve", { attentionId: event.toolCallId });
+      pi.events.emit("glimpseui:attention:resolve", {
+        attentionId: event.toolCallId,
+      });
     }
 
-    return handlePromptResult(ctx, event, hook.name, result, pendingApprovalNotes);
+    return handlePromptResult(ctx, event, bashEvent, hook.name, result, pendingApprovalNotes);
   });
 }
 
@@ -134,18 +154,35 @@ function notifyHookFailures(
 function handlePromptResult(
   ctx: ExtensionContext,
   event: ToolCallEvent,
+  bashEvent: BashToolCallEvent | undefined,
   hookName: string,
   result: PermissionGateResult,
   pendingApprovalNotes: PendingApprovalNotes,
 ): { block: true; reason: string } | undefined {
   switch (result.kind) {
+    case "edit": {
+      if (!bashEvent) throw new Error("edit result produced for a non-bash tool call");
+      bashEvent.input.command = result.command;
+      pendingApprovalNotes.rememberForToolResult(bashEvent.toolCallId, {
+        kind: "edit",
+        hookName,
+        command: result.command,
+        ...(result.note ? { note: result.note } : {}),
+      });
+      ctx.ui.notify(formatHumanFacingEditNotification(hookName), "warning");
+      return undefined;
+    }
     case "allow":
       if (result.note) {
         ctx.ui.notify(
-          formatHumanFacingApprovalNotification({ hookName, note: result.note }),
+          formatHumanFacingApprovalNotification({
+            hookName,
+            note: result.note,
+          }),
           "warning",
         );
         pendingApprovalNotes.rememberForToolResult(event.toolCallId, {
+          kind: "approval",
           hookName,
           note: result.note,
         });

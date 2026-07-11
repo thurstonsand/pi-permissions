@@ -1,33 +1,64 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
-  CURSOR_MARKER,
+  type ExtensionContext,
+  getAgentDir,
+  type KeybindingsManager,
+  SettingsManager,
+  type Theme,
+} from "@earendil-works/pi-coding-agent";
+import {
+  Editor,
+  type EditorTheme,
   type Focusable,
   getKeybindings,
+  type KeyId,
   matchesKey,
+  type TUI,
   visibleWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
-import type { PermissionRequestPrompt } from "../api.js";
+import type { PermissionRequestLabels } from "../api.js";
+import type { PermissionHighlight } from "../highlight.js";
+import { formatToolDetailLine } from "../presentation.js";
+import { DraftInput, sanitizeDraftInput } from "./draft-input.js";
+import { openExternalEditor } from "./external-editor.js";
 
 export type PermissionGateResult =
   | { kind: "allow"; note?: string }
-  | { kind: "reject"; abort: boolean; note?: string };
+  | { kind: "reject"; abort: boolean; note?: string }
+  | { kind: "edit"; command: string; note?: string };
 
-type PermissionChoice = "yes" | "no";
+type PermissionChoice = "yes" | "edit" | "no";
+type PromptMode = "select" | "edit";
+type EditField = "command" | "note";
 
-type WrappedLine = {
-  text: string;
-  startIndex: number;
-};
+type ResolvedLabels = Required<PermissionRequestLabels>;
 
-const CHOICES: PermissionChoice[] = ["yes", "no"];
-const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+export interface PermissionPromptView {
+  name: string;
+  header: string;
+  toolName: string;
+  detail: string;
+  highlight?: PermissionHighlight;
+  labels: ResolvedLabels;
+  editable?: { command: string };
+}
+
+type EditSession = { original: string; editor: Editor };
+
+const EMPTY_COMMAND_WARNING = "An empty command achieves nothing";
+const NUMBER_KEYS: readonly KeyId[] = ["1", "2", "3"];
 
 function padRight(content: string, width: number): string {
   return content + " ".repeat(Math.max(0, width - visibleWidth(content)));
 }
 
-function hint(theme: ExtensionContext["ui"]["theme"], key: string, description: string): string {
+function stripCursorHighlight(line: string): string {
+  // Drop the editor's inverse-video cursor (ESC[7m … ESC[0m), keeping the
+  // character it sat on. The editor emits no other reverse-video runs.
+  return line.replaceAll("\x1b[7m", "").replaceAll("\x1b[0m", "");
+}
+
+function hint(theme: Theme, key: string, description: string): string {
   return theme.fg("dim", key) + theme.fg("muted", ` ${description}`);
 }
 
@@ -37,91 +68,68 @@ function wrapParagraphs(text: string, width: number): string[] {
     .flatMap((line) => (line ? wrapTextWithAnsi(line, Math.max(1, width)) : [""]));
 }
 
-function getNextGraphemeLength(text: string, index: number): number {
-  const remaining = text.slice(index);
-  const first = segmenter.segment(remaining)[Symbol.iterator]().next().value;
-  return first?.segment.length ?? 1;
-}
-
-function getPreviousGraphemeLength(text: string, index: number): number {
-  const before = text.slice(0, index);
-  const parts = [...segmenter.segment(before)];
-  return parts.at(-1)?.segment.length ?? 1;
-}
-
-function sanitizeDraftInput(text: string): string {
-  return text
-    .replaceAll("\x1b[200~", "")
-    .replaceAll("\x1b[201~", "")
-    .replace(/[\r\n]+/g, " ");
-}
-
-function wrapDraftText(text: string, width: number): WrappedLine[] {
-  const maxWidth = Math.max(1, width);
-  const lines: WrappedLine[] = [];
-  let offset = 0;
-  let remaining = text;
-
-  while (remaining.length > 0) {
-    if (visibleWidth(remaining) <= maxWidth) {
-      lines.push({ text: remaining, startIndex: offset });
-      break;
-    }
-
-    let currentWidth = 0;
-    let breakIndex = -1;
-
-    for (const part of segmenter.segment(remaining)) {
-      const piece = part.segment;
-      const pieceWidth = visibleWidth(piece);
-
-      if (currentWidth + pieceWidth > maxWidth) {
-        if (breakIndex !== -1) {
-          lines.push({ text: remaining.slice(0, breakIndex).trimEnd(), startIndex: offset });
-          const rest = remaining.slice(breakIndex).trimStart();
-          offset += breakIndex;
-          remaining = rest;
-        } else {
-          const line = remaining.slice(0, part.index) || piece;
-          const consumed = remaining.slice(0, part.index) ? part.index : piece.length;
-          lines.push({ text: line, startIndex: offset });
-          offset += consumed;
-          remaining = remaining.slice(consumed);
-        }
-        break;
-      }
-
-      currentWidth += pieceWidth;
-      if (/\s/.test(piece)) {
-        breakIndex = part.index + piece.length;
-      }
-    }
-  }
-
-  return lines.length > 0 ? lines : [{ text: "", startIndex: 0 }];
+function buildEditorTheme(theme: Theme): EditorTheme {
+  const dim = (text: string) => theme.fg("dim", text);
+  return {
+    borderColor: (text: string) => theme.fg("borderMuted", text),
+    selectList: {
+      selectedPrefix: (text: string) => theme.fg("accent", text),
+      selectedText: (text: string) => theme.fg("accent", text),
+      description: dim,
+      scrollInfo: dim,
+      noMatch: dim,
+    },
+  };
 }
 
 class PermissionPromptOverlay implements Focusable {
   focused = false;
 
+  private mode: PromptMode = "select";
   private selected: PermissionChoice = "yes";
   private editing = false;
   private tabUsed = false;
-  private drafts: Record<PermissionChoice, string> = { yes: "", no: "" };
-  private cursor = 0;
+  private editField: EditField = "command";
+  private warning: string | null = null;
+  // Single-slot stash for the ctrl+r original/edits toggle. Non-null means the
+  // buffer currently shows the pristine original and holds the approver's edits
+  // in reserve; null means the buffer holds the live draft.
+  private stashedEdits: string | null = null;
+  private readonly drafts: Record<PermissionChoice, DraftInput>;
+  private readonly choices: PermissionChoice[];
+  private readonly editSession?: EditSession;
 
   constructor(
-    private theme: ExtensionContext["ui"]["theme"],
-    private name: string,
-    private message: string,
-    private requestPrompt: Required<Pick<PermissionRequestPrompt, "approveLabel" | "rejectLabel">>,
+    private tui: TUI,
+    private theme: Theme,
+    private keybindings: KeybindingsManager,
+    private view: PermissionPromptView,
+    private externalEditorCommand: string,
     private done: (result: PermissionGateResult) => void,
-  ) {}
+  ) {
+    this.drafts = {
+      yes: new DraftInput(theme),
+      edit: new DraftInput(theme),
+      no: new DraftInput(theme),
+    };
+    this.choices = view.editable ? ["yes", "edit", "no"] : ["yes", "no"];
+
+    if (view.editable) {
+      const editor = new Editor(tui, buildEditorTheme(theme));
+      editor.setText(view.editable.command);
+      this.editSession = { original: view.editable.command, editor };
+    }
+  }
 
   invalidate(): void {}
   dispose(): void {}
 
   handleInput(data: string): void {
+    if (this.mode === "edit") {
+      this.handleEditModeInput(data);
+      return;
+    }
+
     if (this.isCancel(data)) {
       this.done({ kind: "reject", abort: true });
       return;
@@ -146,34 +154,164 @@ class PermissionPromptOverlay implements Focusable {
     const border = (text: string) => this.theme.fg("border", text);
     const row = (content = "") => `${border("│")} ${padRight(content, bodyWidth)}${border("│")}`;
 
+    const content =
+      this.mode === "edit" ? this.renderEditMode(bodyWidth) : this.renderSelectMode(bodyWidth);
+
     return [
       border(`╭${"─".repeat(innerWidth)}╮`),
-      row(this.theme.fg("accent", this.theme.bold(this.name))),
-      row(),
-      ...wrapParagraphs(this.message, bodyWidth).map((line) => row(line)),
-      row(),
-      ...this.renderOptions(bodyWidth).map((line) => row(line)),
-      row(),
-      row(this.renderLegend()),
+      ...content.map((line) => row(line)),
       border(`╰${"─".repeat(innerWidth)}╯`),
     ];
   }
 
-  private get currentDraft(): string {
-    return this.drafts[this.selected];
+  private renderSelectMode(bodyWidth: number): string[] {
+    const header = this.view.header ? [...wrapParagraphs(this.view.header, bodyWidth), ""] : [];
+
+    return [
+      this.theme.fg("accent", this.theme.bold(this.view.name)),
+      "",
+      ...header,
+      ...wrapParagraphs(this.renderDetail(), bodyWidth),
+      "",
+      ...this.renderOptions(bodyWidth),
+      "",
+      this.renderSelectLegend(),
+    ];
   }
 
-  private set currentDraft(value: string) {
-    this.drafts[this.selected] = value;
+  // Highlights are evidence attached to the one-time verdict about the command
+  // the agent proposed. They are computed once against that original command and
+  // never recomputed against or projected into the approver's edit buffer, so
+  // the select-mode detail line always shows the original.
+  // The detail line shows what the highlighted choice will run: the approver's
+  // live buffer under Edit, the agent's original otherwise. Highlights are
+  // decision-scoped evidence about the original, so they are drawn only on it
+  // and never projected onto the edit.
+  private renderDetail(): string {
+    const emphasize = (fragment: string) => this.theme.fg("warning", this.theme.bold(fragment));
+    if (this.selected === "edit" && this.editSession) {
+      const edited = this.editSession.editor.getExpandedText().trim();
+      return formatToolDetailLine(this.view.toolName, edited, undefined, emphasize);
+    }
+    return formatToolDetailLine(
+      this.view.toolName,
+      this.view.detail,
+      this.view.highlight,
+      emphasize,
+    );
+  }
+
+  private renderEditMode(bodyWidth: number): string[] {
+    if (!this.editSession) return [];
+
+    // The pi Editor always paints its inverse-video cursor regardless of its
+    // focused flag, so strip it while the note field holds focus — otherwise
+    // both fields show a cursor at once.
+    const commandLines = this.editSession.editor.render(bodyWidth);
+    const command =
+      this.editField === "command" ? commandLines : commandLines.map(stripCursorHighlight);
+
+    return [
+      this.theme.fg("accent", this.theme.bold(this.view.name)),
+      "",
+      "Command",
+      ...command,
+      this.warning ? this.theme.fg("error", this.warning) : "",
+      this.theme.fg("dim", "Note to agent"),
+      ...this.drafts.edit.renderLines(bodyWidth, {
+        color: "dim",
+        showCursor: this.editField === "note",
+        focused: this.focused,
+      }),
+      "",
+      ...this.renderEditLegend(),
+    ];
+  }
+
+  private handleEditModeInput(data: string): void {
+    if (!this.editSession) return;
+    this.warning = null;
+
+    if (this.isCancel(data)) {
+      this.mode = "select";
+      return;
+    }
+
+    if (this.keybindings.matches(data, "app.editor.external")) {
+      void this.openExternalForFocusedField();
+      return;
+    }
+
+    if (matchesKey(data, "ctrl+r")) {
+      this.toggleOriginalStash();
+      return;
+    }
+
+    // Only tab is advertised in the legend, but shift+tab toggles too: with two
+    // fields either direction flips focus, and honoring both matches muscle
+    // memory.
+    if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) {
+      this.toggleEditField();
+      return;
+    }
+
+    // Enter submits from either field. Intercepting it here keeps a single
+    // submit path through submitEdit; the Editor's own submit (which trims and
+    // wipes its buffer) is never reached. Shift+enter still falls through for
+    // newlines.
+    if (this.isConfirm(data)) {
+      this.submitEdit();
+      return;
+    }
+
+    if (this.editField === "command") {
+      this.editSession.editor.handleInput(data);
+      this.reconcileStash();
+      return;
+    }
+
+    this.drafts.edit.handleInput(data);
+  }
+
+  // ctrl+r swaps which lineage occupies the buffer rather than destroying edits:
+  // showing edits -> stash them and load the original; showing the original ->
+  // restore the stashed edits. A no-op when the buffer already equals the
+  // original with nothing stashed.
+  private toggleOriginalStash(): void {
+    if (!this.editSession) return;
+    const { editor, original } = this.editSession;
+
+    if (this.stashedEdits === null) {
+      if (this.bufferMatchesOriginal()) return;
+      this.stashedEdits = editor.getExpandedText();
+      editor.setText(original);
+    } else {
+      editor.setText(this.stashedEdits);
+      this.stashedEdits = null;
+    }
+  }
+
+  // Modifying the buffer while it shows the original discards the stash: the
+  // approver has chosen to start over from the original, so the old edits are
+  // not resurrectable.
+  private reconcileStash(): void {
+    if (this.stashedEdits !== null && !this.bufferMatchesOriginal()) {
+      this.stashedEdits = null;
+    }
+  }
+
+  private bufferMatchesOriginal(): boolean {
+    if (!this.editSession) return true;
+    return this.editSession.editor.getExpandedText().trim() === this.editSession.original.trim();
   }
 
   private handleEditingInput(data: string): void {
     if (this.isUp(data, false)) {
-      this.moveSelection("yes");
+      this.moveSelectionBy(-1);
       return;
     }
     if (this.isDown(data, false)) {
-      this.moveSelection("no");
+      this.moveSelectionBy(1);
       return;
     }
     if (this.isConfirm(data)) {
@@ -181,40 +319,43 @@ class PermissionPromptOverlay implements Focusable {
       return;
     }
     if (matchesKey(data, "tab")) return;
-    this.handleDraftInput(data);
+    this.drafts[this.selected].handleInput(data);
   }
 
   private handleSelectionInput(data: string): void {
     if (matchesKey(data, "tab")) {
       this.tabUsed = true;
       this.editing = true;
-      this.cursor = this.currentDraft.length;
+      this.drafts[this.selected].toEnd();
       return;
     }
 
     if (this.isUp(data)) {
-      this.moveSelection("yes");
+      this.moveSelectionBy(-1);
       return;
     }
 
     if (this.isDown(data)) {
-      this.moveSelection("no");
+      this.moveSelectionBy(1);
       return;
     }
 
-    if (matchesKey(data, "1")) {
-      this.selectByNumber("yes");
-      return;
-    }
-
-    if (matchesKey(data, "2")) {
-      this.selectByNumber("no");
+    const numbered = this.choiceForNumberKey(data);
+    if (numbered) {
+      this.selectByNumber(numbered);
       return;
     }
 
     if (this.isConfirm(data)) {
       this.commitSelection();
     }
+  }
+
+  private choiceForNumberKey(data: string): PermissionChoice | undefined {
+    return this.choices.find((_, index) => {
+      const key = NUMBER_KEYS[index];
+      return key !== undefined && matchesKey(data, key);
+    });
   }
 
   private selectByNumber(choice: PermissionChoice): void {
@@ -247,21 +388,30 @@ class PermissionPromptOverlay implements Focusable {
     return getKeybindings().matches(data, "tui.select.cancel") || matchesKey(data, "escape");
   }
 
+  private moveSelectionBy(delta: number): void {
+    const index = this.choices.indexOf(this.selected);
+    const nextIndex = Math.min(this.choices.length - 1, Math.max(0, index + delta));
+    const next = this.choices[nextIndex];
+    if (next) this.moveSelection(next);
+  }
+
   private moveSelection(next: PermissionChoice): void {
     if (this.selected === next) return;
 
+    // Navigation never enters note editing — that requires an explicit tab — so
+    // j/k and arrows keep moving between choices even when the target choice
+    // already carries a draft note.
     this.selected = next;
-    if (this.drafts[next]) {
-      this.editing = true;
-      this.cursor = this.drafts[next].length;
-    } else {
-      this.editing = false;
-      this.cursor = 0;
-    }
+    this.editing = false;
   }
 
   private commitSelection(): void {
-    const note = this.currentDraft.trim();
+    if (this.selected === "edit") {
+      this.enterEditMode();
+      return;
+    }
+
+    const note = this.drafts[this.selected].trimmed;
 
     if (this.selected === "yes") {
       this.done(note ? { kind: "allow", note } : { kind: "allow" });
@@ -271,129 +421,104 @@ class PermissionPromptOverlay implements Focusable {
     this.done(note ? { kind: "reject", abort: false, note } : { kind: "reject", abort: true });
   }
 
-  private handleDraftInput(data: string): void {
-    if (matchesKey(data, "left")) {
-      if (this.cursor > 0) {
-        this.cursor -= getPreviousGraphemeLength(this.currentDraft, this.cursor);
+  private enterEditMode(): void {
+    if (!this.editSession) return;
+    this.mode = "edit";
+    this.editing = false;
+    this.selected = "edit";
+    this.editField = "command";
+    this.warning = null;
+    this.drafts.edit.toEnd();
+    this.editSession.editor.focused = true;
+  }
+
+  private toggleEditField(): void {
+    if (!this.editSession) return;
+    if (this.editField === "command") {
+      this.editField = "note";
+      this.drafts.edit.toEnd();
+      this.editSession.editor.focused = false;
+    } else {
+      this.editField = "command";
+      this.editSession.editor.focused = true;
+    }
+  }
+
+  private submitEdit(): void {
+    if (!this.editSession) return;
+
+    const command = this.editSession.editor.getExpandedText().trim();
+    if (command.length === 0) {
+      this.warning = EMPTY_COMMAND_WARNING;
+      return;
+    }
+
+    const note = this.drafts.edit.trimmed;
+
+    if (command === this.editSession.original.trim()) {
+      this.done(note ? { kind: "allow", note } : { kind: "allow" });
+      return;
+    }
+
+    this.done(note ? { kind: "edit", command, note } : { kind: "edit", command });
+  }
+
+  private async openExternalForFocusedField(): Promise<void> {
+    if (!this.editSession) return;
+
+    if (this.editField === "command") {
+      const next = await openExternalEditor(
+        this.tui,
+        this.externalEditorCommand,
+        this.editSession.editor.getExpandedText(),
+      );
+      if (next !== null) {
+        this.editSession.editor.setText(next);
+        this.reconcileStash();
       }
       return;
     }
 
-    if (matchesKey(data, "right")) {
-      if (this.cursor < this.currentDraft.length) {
-        this.cursor += getNextGraphemeLength(this.currentDraft, this.cursor);
-      }
-      return;
-    }
-
-    if (matchesKey(data, "home") || getKeybindings().matches(data, "tui.editor.cursorLineStart")) {
-      this.cursor = 0;
-      return;
-    }
-
-    if (matchesKey(data, "end") || getKeybindings().matches(data, "tui.editor.cursorLineEnd")) {
-      this.cursor = this.currentDraft.length;
-      return;
-    }
-
-    if (this.deleteBackward(data)) return;
-    if (this.deleteForward(data)) return;
-
-    const text = sanitizeDraftInput(data);
-    if (!text || hasControlCharacters(text)) return;
-
-    this.currentDraft =
-      this.currentDraft.slice(0, this.cursor) + text + this.currentDraft.slice(this.cursor);
-    this.cursor += text.length;
+    const next = await openExternalEditor(
+      this.tui,
+      this.externalEditorCommand,
+      this.drafts.edit.text,
+    );
+    if (next !== null) this.drafts.edit.setText(sanitizeDraftInput(next));
   }
 
-  private deleteBackward(data: string): boolean {
-    if (
-      !getKeybindings().matches(data, "tui.editor.deleteCharBackward") &&
-      !matchesKey(data, "backspace")
-    ) {
-      return false;
-    }
-
-    if (this.cursor > 0) {
-      const len = getPreviousGraphemeLength(this.currentDraft, this.cursor);
-      this.currentDraft =
-        this.currentDraft.slice(0, this.cursor - len) + this.currentDraft.slice(this.cursor);
-      this.cursor -= len;
-    }
-    return true;
-  }
-
-  private deleteForward(data: string): boolean {
-    if (
-      !getKeybindings().matches(data, "tui.editor.deleteCharForward") &&
-      !matchesKey(data, "delete")
-    ) {
-      return false;
-    }
-
-    if (this.cursor < this.currentDraft.length) {
-      const len = getNextGraphemeLength(this.currentDraft, this.cursor);
-      this.currentDraft =
-        this.currentDraft.slice(0, this.cursor) + this.currentDraft.slice(this.cursor + len);
-    }
-    return true;
+  private labelFor(choice: PermissionChoice): string {
+    if (choice === "yes") return this.view.labels.approveLabel;
+    if (choice === "no") return this.view.labels.rejectLabel;
+    return this.view.labels.editLabel;
   }
 
   private renderOptions(width: number): string[] {
-    return CHOICES.flatMap((choice, index) => this.renderOption(choice, index + 1, width));
+    return this.choices.flatMap((choice, index) => this.renderOption(choice, index + 1, width));
   }
 
   private renderOption(choice: PermissionChoice, number: number, width: number): string[] {
     const isSelected = this.selected === choice;
     const isEditing = isSelected && this.editing;
-    const label =
-      choice === "yes" ? this.requestPrompt.approveLabel : this.requestPrompt.rejectLabel;
     const draft = this.drafts[choice];
-    const prefix = `${isSelected ? "→" : " "} ${number}. ${label}`;
+    const prefix = `${isSelected ? "→" : " "} ${number}. ${this.labelFor(choice)}`;
     const styledPrefix = isSelected ? this.theme.fg("accent", prefix) : prefix;
 
     if (!isEditing) {
-      if (!draft) return [styledPrefix];
+      if (!draft.text) return [styledPrefix];
       const suffix = this.theme.fg(isSelected ? "accent" : "muted", ", and...");
       return [styledPrefix + suffix];
     }
 
-    return this.renderEditingOption(prefix, draft, width);
-  }
-
-  private renderEditingOption(prefix: string, draft: string, width: number): string[] {
-    const rawDisplay = draft.length > 0 && this.cursor < draft.length ? draft : `${draft} `;
-    const firstPrefix = `${prefix}, and `;
-    const prefixWidth = visibleWidth(firstPrefix);
-    const wrapped = wrapDraftText(rawDisplay, width - prefixWidth);
-
-    return wrapped.map((line, lineIndex) => {
-      const rowPrefix = lineIndex === 0 ? firstPrefix : " ".repeat(prefixWidth);
-      const lineStart = line.startIndex;
-      const lineEnd = line.startIndex + line.text.length;
-      const hasCursor = this.cursor >= lineStart && this.cursor < lineEnd;
-
-      if (!hasCursor) {
-        return this.theme.fg("accent", rowPrefix + line.text);
-      }
-
-      const cursorLength = getNextGraphemeLength(rawDisplay, this.cursor);
-      const localIndex = this.cursor - lineStart;
-      const before = line.text.slice(0, localIndex);
-      const cursorText = line.text.slice(localIndex, localIndex + cursorLength) || " ";
-      const after = line.text.slice(localIndex + cursorLength);
-
-      return (
-        this.theme.fg("accent", rowPrefix + before) +
-        (this.focused ? CURSOR_MARKER : "") +
-        this.theme.inverse(cursorText) +
-        this.theme.fg("accent", after)
-      );
+    return draft.renderLines(width, {
+      color: "accent",
+      showCursor: true,
+      focused: this.focused,
+      firstPrefix: `${prefix}, and `,
     });
   }
 
-  private renderLegend(): string {
+  private renderSelectLegend(): string {
     return [
       hint(this.theme, "↑↓", "select"),
       hint(this.theme, "enter", "confirm"),
@@ -402,23 +527,48 @@ class PermissionPromptOverlay implements Focusable {
       hint(this.theme, "esc", "abort"),
     ].join("  ");
   }
+
+  private renderEditLegend(): string[] {
+    const firstLine = [hint(this.theme, "enter", "run")];
+    // shift+enter inserts a newline only in the multi-line command editor; the
+    // note field is single-line and ignores it.
+    if (this.editField === "command") {
+      firstLine.push(hint(this.theme, "shift+enter", "newline"));
+    }
+    firstLine.push(
+      hint(this.theme, "tab", `switch to ${this.editField === "command" ? "note" : "command"}`),
+    );
+
+    return [
+      firstLine.join("  "),
+      [
+        hint(this.theme, "ctrl+g", "external editor"),
+        // Swap target doubles as the state indicator: "original" when the buffer
+        // holds edits, "your edits" when it holds the stashed-away original.
+        hint(this.theme, "ctrl+r", this.stashedEdits === null ? "original" : "your edits"),
+        hint(this.theme, "esc", "back"),
+      ].join("  "),
+    ];
+  }
 }
 
 export async function showPermissionGate(
   ctx: ExtensionContext,
-  name: string,
-  message: string,
-  prompt: Required<Pick<PermissionRequestPrompt, "approveLabel" | "rejectLabel">>,
+  view: PermissionPromptView,
 ): Promise<PermissionGateResult> {
+  const externalEditorCommand = view.editable ? resolveExternalEditorCommand(ctx) : "";
   return ctx.ui.custom<PermissionGateResult>(
-    (_tui, theme, _keybindings, done) =>
-      new PermissionPromptOverlay(theme, name, message, prompt, done),
+    (tui, theme, keybindings, done) =>
+      new PermissionPromptOverlay(tui, theme, keybindings, view, externalEditorCommand, done),
   );
 }
 
-function hasControlCharacters(text: string): boolean {
-  return [...text].some((char) => {
-    const code = char.charCodeAt(0);
-    return code < 32 || code === 0x7f || (code >= 0x80 && code <= 0x9f);
+// Resolve the approver's external editor the same way pi does for its own
+// input: the `externalEditor` setting, then $VISUAL/$EDITOR, then a platform
+// default.
+function resolveExternalEditorCommand(ctx: ExtensionContext): string {
+  const settings = SettingsManager.create(ctx.cwd, getAgentDir(), {
+    projectTrusted: ctx.isProjectTrusted(),
   });
+  return settings.getExternalEditorCommand() ?? (process.platform === "win32" ? "notepad" : "nano");
 }

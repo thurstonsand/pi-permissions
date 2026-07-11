@@ -36,7 +36,7 @@ and stops on the first hook that requests or blocks.
 
 ## Writing a permission module
 
-A permission module default-exports a function. Register checks with `api.onToolUse()`:
+A permission module default-exports a function. Register checks with `api.onToolUse()`. This module is also available as [`examples/git-commit.ts`](examples/git-commit.ts):
 
 ```ts
 import {
@@ -66,6 +66,8 @@ export default function permissions(api: PermissionsAPI) {
   });
 }
 ```
+
+![Git commit approval prompt](images/example-git-commit.png)
 
 Each hook has:
 
@@ -100,12 +102,13 @@ return request({
   guidance: "Check the target environment.",
   highlight: /production|prod-db/i,
   approveLabel: "Approve",
+  editLabel: "Edit",
   rejectLabel: "Reject",
 });
 return block("Do not edit generated files directly.");
 ```
 
-`guidance` adds request-specific text to the prompt. `highlight` emphasizes offending fragments of the tool detail with a string, RegExp, array of either, precomputed spans, or a callback that returns spans. `approveLabel` and `rejectLabel` change the button labels for that request.
+`guidance` adds request-specific text to the prompt. `highlight` emphasizes offending fragments of the tool detail with a string, RegExp, array of either, precomputed spans, or a callback that returns spans. `approveLabel`, `editLabel`, and `rejectLabel` change the button labels for that request.
 
 A highlight callback receives the rendered tool detail and returns half-open `{ start, end }` offsets. Use `highlightSpans(detail, pattern)` inside a callback when you need pattern matching plus a little extra filtering.
 
@@ -132,46 +135,9 @@ Useful exports:
 
 ## Examples
 
-### Ask before git mutations
+Every example below is also available as a runnable module in [`examples/`](examples/). Copy one into your user- or project-level permissions directory and adapt it to your workflow.
 
-```ts
-import {
-  gitValueFlags,
-  matchCommand,
-  matchTool,
-  request,
-  type PermissionsAPI,
-} from "@thurstonsand/pi-permissions";
-
-const gitMutations = matchCommand({
-  program: "git",
-  subcommands: [
-    "add",
-    "commit",
-    "push",
-    "checkout",
-    "reset",
-    "clean",
-    "rebase",
-  ],
-  valueFlags: gitValueFlags,
-  onMatch: (match) => request({ highlight: match.spans }),
-});
-
-export default function permissions(api: PermissionsAPI) {
-  api.onToolUse({
-    name: "git mutations",
-    description: "Ask before the agent mutates git state.",
-    handler(input) {
-      return matchTool(input.tool, { bash: gitMutations });
-    },
-  });
-}
-```
-
-`matchCommand()` parses shell structure instead of searching raw text, so `echo "git add"` and `git grep add` stay inert while `command git -C /repo add` is caught.
-
-### Ask before recursive forced removal
+### [Ask before recursive forced removal](examples/destructive-removal.ts)
 
 ```ts
 import {
@@ -206,36 +172,11 @@ export default function permissions(api: PermissionsAPI) {
 }
 ```
 
+![Destructive removal approval prompt](images/example-destructive-removal.png)
+
 `where` narrows matches by an arbitrary predicate the same way `subcommands` narrows by name; `onMatch` only fires when at least one command passes all filters.
 
-### Ask before `git commit`
-
-```ts
-import {
-  matchTool,
-  request,
-  type PermissionsAPI,
-} from "@thurstonsand/pi-permissions";
-
-const GIT_COMMIT = /\bgit commit\b/;
-
-export default function permissions(api: PermissionsAPI) {
-  api.onToolUse({
-    name: "git commit",
-    description: "The agent should not create commits without approval.",
-    handler(input) {
-      return matchTool(input.tool, {
-        bash(tool) {
-          if (GIT_COMMIT.test(tool.command))
-            return request({ highlight: GIT_COMMIT });
-        },
-      });
-    },
-  });
-}
-```
-
-### Block reading `.env`
+### [Block reading `.env`](examples/block-env-read.ts)
 
 ```ts
 import {
@@ -261,7 +202,9 @@ export default function permissions(api: PermissionsAPI) {
 }
 ```
 
-### Ask before a direct pi-mcp-adapter tool
+![Blocked .env read](images/example-block-env-read.png)
+
+### [Ask before a pi-mcp-adapter tool](examples/github-release.ts)
 
 [`pi-mcp-adapter`](https://github.com/nicobailon/pi-mcp-adapter) can expose MCP tools directly as Pi tools. If a GitHub MCP server exposes a direct tool named `github_create_release`, you can match it like any other Pi tool.
 
@@ -292,6 +235,8 @@ export default function permissions(api: PermissionsAPI) {
   });
 }
 ```
+
+![GitHub release approval prompt](images/example-github-release.png)
 
 ## Package-bundled permissions
 
@@ -324,15 +269,17 @@ And you can choose exactly which permissions to use in your pi settings where yo
 
 An empty `permissions` array disables permissions from that package.
 
-## Approval prompts
+## Responding to permission requests
 
-When a hook returns `request()`, Pi shows the approver a prompt before the tool runs. If the request includes `highlight`, matching tool-detail fragments render in warning color and bold.
-
-![Approval prompt](images/approval-prompt.png)
+When a hook returns `request()`, Pi pauses before running the tool.
 
 Approving runs the tool. If the approver adds a note, that note is passed back into the session as context.
 
 Rejecting blocks the tool. A rejection with a note tells the agent how to proceed; a rejection without a note aborts the current turn. Hitting `esc` also aborts the turn.
+
+For `bash` tool calls, **Edit** opens the command and an optional note in a multiline editor.
+
+![Editing a bash command before approval](images/edit-command.png)
 
 ## Managing permissions
 

@@ -13,8 +13,11 @@
 - Permission decision: The terminal result of a permission hook: block or request; hooks return `undefined` when they do not decide
 - Request: A permission decision that asks the Approver whether a tool call should proceed
 - Guidance: Optional request-specific text an Author adds to a prompt in addition to the hook description
-- Highlight: Optional patterns or span-producing callbacks a request provides to emphasize the offending fragment of the tool detail in a prompt
+- Highlight: Optional patterns or span-producing callbacks a request provides to emphasize the offending fragment of the tool detail in a prompt; computed only against the proposed command
 - Prompt: The text and labels shown to the Approver for a request, in totality
+- Approve/Reject: Prompt outcomes where the Approver accepts or rejects an execution
+- Edit: A prompt outcome where the Approver rewrites a bash command before execution; implies approval and skips hook re-evaluation
+- Note: Approver-authored text attached to a prompt outcome and relayed to the agent alongside the tool result
 - Permission root: The directory that contains the permission module or permission package currently handling a hook
 - Custom tool: A non-built-in Pi tool registered by an extension
 - Program: The effective executable of a simple command, determined after skipping wrappers and variable assignments

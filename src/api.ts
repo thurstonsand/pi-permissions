@@ -19,11 +19,15 @@ export type PermissionDecision =
   | { decision: "block"; reason: string }
   | { decision: "request"; prompt?: PermissionRequestPrompt };
 
-export interface PermissionRequestPrompt {
+export interface PermissionRequestLabels {
+  approveLabel?: string;
+  editLabel?: string;
+  rejectLabel?: string;
+}
+
+export interface PermissionRequestPrompt extends PermissionRequestLabels {
   guidance?: string;
   highlight?: PermissionHighlight;
-  approveLabel?: string;
-  rejectLabel?: string;
 }
 
 export function block(reason: string): PermissionDecision {

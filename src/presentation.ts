@@ -6,6 +6,16 @@ export type ApprovalNote = {
   note: string;
 };
 
+export type EditNote = {
+  hookName: string;
+  command: string;
+  note?: string;
+};
+
+export type PendingToolResultNote =
+  | ({ kind: "approval" } & ApprovalNote)
+  | ({ kind: "edit" } & EditNote);
+
 export type PermissionPromptInput = {
   hookName: string;
   description: string;
@@ -36,41 +46,41 @@ ${formatDecisionLog("Abort log", note)}`
     : aborted;
 }
 
-export function formatHumanFacingPermissionPrompt(
-  input: PermissionPromptInput,
-  emphasize: PermissionPromptEmphasis = identity,
-): {
+export function formatHumanFacingPermissionPrompt(input: PermissionPromptInput): {
   name: string;
-  message: string;
+  header: string;
   approveLabel: string;
+  editLabel: string;
   rejectLabel: string;
 } {
-  const detail = formatToolDetail(input, emphasize);
-  const message = [input.description, input.prompt?.guidance, detail]
+  const header = [input.description, input.prompt?.guidance]
     .filter((part) => part && part.trim().length > 0)
     .join("\n\n");
 
   return {
     name: `! Authorization required: ${input.hookName}`,
-    message,
+    header,
     approveLabel: input.prompt?.approveLabel ?? "Authorize",
+    editLabel: input.prompt?.editLabel ?? "Edit",
     rejectLabel: input.prompt?.rejectLabel ?? "Abort",
   };
 }
 
-function identity(fragment: string): string {
-  return fragment;
+// The tool-detail line (`toolName: <command>`) is rendered separately from the
+// prompt header so the overlay can re-derive it — and recompute highlights —
+// against whatever command is current (the agent's original, or the approver's
+// edit).
+export function formatToolDetailLine(
+  toolName: string,
+  detail: string,
+  highlight: PermissionRequestPrompt["highlight"],
+  emphasize: PermissionPromptEmphasis = identity,
+): string {
+  return `${toolName}: ${formatHighlightedDetail(detail, highlight, emphasize)}`;
 }
 
-function formatToolDetail(
-  input: PermissionPromptInput,
-  emphasize: PermissionPromptEmphasis,
-): string {
-  return `${input.toolName}: ${formatHighlightedDetail(
-    input.toolDetail,
-    input.prompt?.highlight,
-    emphasize,
-  )}`;
+function identity(fragment: string): string {
+  return fragment;
 }
 
 function formatHighlightedDetail(
@@ -110,6 +120,30 @@ export function formatAgentFacingApprovalNote({ hookName, note }: ApprovalNote):
 
 The user approved this tool use and provided additional context for how to proceed:
 ${note}`;
+}
+
+export function formatAgentFacingEditNote({ hookName, command, note }: EditNote): string {
+  const base = `Edited by user via permission hook ${hookName}
+
+The user edited this command before execution. The command that actually ran:
+${command}`;
+
+  if (!note) return base;
+
+  return `${base}
+
+The user also provided context for how to proceed:
+${note}`;
+}
+
+export function formatAgentFacingToolResultNote(note: PendingToolResultNote): string {
+  return note.kind === "edit"
+    ? formatAgentFacingEditNote(note)
+    : formatAgentFacingApprovalNote(note);
+}
+
+export function formatHumanFacingEditNotification(hookName: string): string {
+  return `Command edited (${hookName})`;
 }
 
 export function formatAgentFacingBlockReason(hookName: string, reason: string): string {

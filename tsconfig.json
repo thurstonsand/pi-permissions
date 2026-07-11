@@ -10,5 +10,11 @@
     "noUncheckedIndexedAccess": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["extensions/**/*.ts", "src/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
+  "include": [
+    "examples/**/*.ts",
+    "extensions/**/*.ts",
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "vitest.config.ts"
+  ]
 }

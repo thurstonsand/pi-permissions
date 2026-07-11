@@ -2,56 +2,60 @@ import { describe, expect, it } from "vitest";
 import {
   formatAgentFacingApprovalNote,
   formatAgentFacingBlockReason,
+  formatAgentFacingEditNote,
   formatAgentFacingRejectionReason,
   formatHumanFacingPermissionPrompt,
+  formatToolDetailLine,
 } from "../src/presentation.js";
 
 describe("human-facing permission prompts", () => {
-  it("emphasizes highlighted tool detail fragments only", () => {
+  it("returns the header (description and guidance) and labels", () => {
     expect(
-      formatHumanFacingPermissionPrompt(
-        {
-          hookName: "Git interference",
-          description: "Git staging is reserved for the approver.",
-          toolName: "bash",
-          toolDetail: "npm test && git add -A && echo done",
-          prompt: {
-            guidance: "Review the command chain.",
-            highlight: /git add\b/,
-          },
+      formatHumanFacingPermissionPrompt({
+        hookName: "Git interference",
+        description: "Git staging is reserved for the approver.",
+        toolName: "bash",
+        toolDetail: "npm test && git add -A && echo done",
+        prompt: {
+          guidance: "Review the command chain.",
+          highlight: /git add\b/,
         },
-        (fragment) => `<<${fragment}>>`,
-      ),
+      }),
     ).toEqual({
       name: "! Authorization required: Git interference",
-      message: `Git staging is reserved for the approver.
+      header: `Git staging is reserved for the approver.
 
-Review the command chain.
-
-bash: npm test && <<git add>> -A && echo done`,
+Review the command chain.`,
       approveLabel: "Authorize",
+      editLabel: "Edit",
       rejectLabel: "Abort",
     });
   });
+});
+
+describe("tool detail line", () => {
+  it("emphasizes highlighted fragments only", () => {
+    expect(
+      formatToolDetailLine(
+        "bash",
+        "npm test && git add -A && echo done",
+        /git add\b/,
+        (fragment) => `<<${fragment}>>`,
+      ),
+    ).toBe("bash: npm test && <<git add>> -A && echo done");
+  });
 
   it("emphasizes each line of a multi-line span independently", () => {
-    const { message } = formatHumanFacingPermissionPrompt(
-      {
-        hookName: "Git interference",
-        description: "tampering with repository state or history",
-        toolName: "bash",
-        toolDetail: "cat <<EOF\nfeat: change\nEOF\ngit commit -F msg",
-        prompt: {
-          highlight: [{ start: 0, end: "cat <<EOF\nfeat: change\nEOF\ngit commit -F msg".length }],
-        },
-      },
-      (fragment) => `<<${fragment}>>`,
-    );
-
-    expect(message).toBe(
-      `tampering with repository state or history
-
-bash: <<cat <<EOF>>
+    const detail = "cat <<EOF\nfeat: change\nEOF\ngit commit -F msg";
+    expect(
+      formatToolDetailLine(
+        "bash",
+        detail,
+        [{ start: 0, end: detail.length }],
+        (fragment) => `<<${fragment}>>`,
+      ),
+    ).toBe(
+      `bash: <<cat <<EOF>>
 <<feat: change>>
 <<EOF>>
 <<git commit -F msg>>`,
@@ -67,6 +71,34 @@ describe("agent-facing permission messages", () => {
 
 The user approved this tool use and provided additional context for how to proceed:
 Proceed carefully.`);
+  });
+
+  it("reports the command that actually ran after an edit", () => {
+    expect(
+      formatAgentFacingEditNote({
+        hookName: "Git interference",
+        command: 'git commit -m "fix wording in readme"',
+      }),
+    ).toBe(`Edited by user via permission hook Git interference
+
+The user edited this command before execution. The command that actually ran:
+git commit -m "fix wording in readme"`);
+  });
+
+  it("appends approver context to an edit note when present", () => {
+    expect(
+      formatAgentFacingEditNote({
+        hookName: "Git interference",
+        command: 'git commit -m "fix wording in readme"',
+        note: "Reworded the message.",
+      }),
+    ).toBe(`Edited by user via permission hook Git interference
+
+The user edited this command before execution. The command that actually ran:
+git commit -m "fix wording in readme"
+
+The user also provided context for how to proceed:
+Reworded the message.`);
   });
 
   it("identifies user rejections by permission hook", () => {
