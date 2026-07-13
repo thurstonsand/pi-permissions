@@ -2,6 +2,25 @@
 
 # Release notes
 
+## 0.8.0
+
+Adds editable bash approval prompts.
+
+### Breaking
+
+- Permission enablement now uses a strict hook-snapshot session format. Existing branch-local permission state entries are ignored, so affected hooks return to enabled by default until changed again.
+
+### Added
+
+- Added an Edit outcome for bash permission prompts, including multiline command editing, optional notes, `$EDITOR` support, and agent-facing context showing the command that actually ran.
+- Added durable, branch-local transcript cards for permission enablement transitions, with compact summaries and expanded per-hook state.
+- Added `editLabel` to permission request prompt customization.
+- Added runnable example permission modules for common git, removal, environment-file, and GitHub release workflows.
+
+### Changed
+
+- Raised the minimum supported `@earendil-works/pi-*` versions to `0.80.4`.
+
 ## 0.7.3
 
 ### Fixed
