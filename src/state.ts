@@ -1,34 +1,74 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
 import { Value } from "typebox/value";
-import type { PermissionEnablement, RuntimePermissionHook } from "./enablement.js";
+import {
+  isPermissionHookEnabled,
+  type PermissionEnablement,
+  type RuntimePermissionHook,
+} from "./enablement.js";
 
-const PERMISSIONS_STATE_SCHEMA = Type.Object({
-  enabled: Type.Optional(Type.Boolean()),
-  hooks: Type.Optional(Type.Record(Type.String(), Type.Boolean())),
-});
+const PERMISSION_SOURCE_SCHEMA = Type.Union([
+  Type.Literal("project"),
+  Type.Literal("user"),
+  Type.TemplateLiteral([Type.Literal("package:"), Type.String()]),
+]);
 
-type PermissionsState = Static<typeof PERMISSIONS_STATE_SCHEMA>;
+const PERSISTED_PERMISSION_HOOK_SCHEMA = Type.Object(
+  {
+    id: Type.String(),
+    name: Type.String(),
+    source: PERMISSION_SOURCE_SCHEMA,
+    enabled: Type.Boolean(),
+    changed: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
 
-const STATE_TYPE = "permissions";
+const PERMISSIONS_STATE_SCHEMA = Type.Object(
+  { hooks: Type.Array(PERSISTED_PERMISSION_HOOK_SCHEMA) },
+  { additionalProperties: false },
+);
 
-export function persistPermissionsState(pi: ExtensionAPI, enablement: PermissionEnablement): void {
-  pi.appendEntry<PermissionsState>(STATE_TYPE, { hooks: enablement });
+export type PersistedPermissionHook = Static<typeof PERSISTED_PERMISSION_HOOK_SCHEMA>;
+export type PermissionsState = Static<typeof PERMISSIONS_STATE_SCHEMA>;
+
+export const PERMISSIONS_STATE_TYPE = "permissions";
+
+export function createPermissionsState(
+  hooks: readonly RuntimePermissionHook[],
+  before: PermissionEnablement,
+  after: PermissionEnablement,
+): PermissionsState | undefined {
+  const snapshot = hooks.map((hook) => {
+    const enabled = isPermissionHookEnabled(after, hook);
+    return {
+      id: hook.id,
+      name: hook.name,
+      source: hook.source,
+      enabled,
+      changed: enabled !== isPermissionHookEnabled(before, hook),
+    };
+  });
+
+  return snapshot.some((hook) => hook.changed) ? { hooks: snapshot } : undefined;
 }
 
-export function restorePermissionsState(
-  ctx: ExtensionContext,
-  hooks: readonly RuntimePermissionHook[],
-): PermissionEnablement {
+export function persistPermissionsState(pi: ExtensionAPI, state: PermissionsState): void {
+  pi.appendEntry<PermissionsState>(PERMISSIONS_STATE_TYPE, state);
+}
+
+export function parsePermissionsState(data: unknown): PermissionsState | undefined {
+  return Value.Check(PERMISSIONS_STATE_SCHEMA, data) ? data : undefined;
+}
+
+export function restorePermissionsState(ctx: ExtensionContext): PermissionEnablement {
   const last = ctx.sessionManager
     .getBranch()
-    .findLast((entry) => entry.type === "custom" && entry.customType === STATE_TYPE);
+    .findLast((entry) => entry.type === "custom" && entry.customType === PERMISSIONS_STATE_TYPE);
 
   if (last?.type !== "custom") return {};
-  if (!Value.Check(PERMISSIONS_STATE_SCHEMA, last.data)) return {};
+  const state = parsePermissionsState(last.data);
+  if (!state) return {};
 
-  const data = last.data;
-  if (data.hooks) return data.hooks;
-  if (data.enabled === false) return Object.fromEntries(hooks.map((hook) => [hook.id, false]));
-  return {};
+  return Object.fromEntries(state.hooks.map((hook) => [hook.id, hook.enabled]));
 }

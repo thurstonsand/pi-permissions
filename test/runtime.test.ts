@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { registerPermissionHooks } from "../extensions/hooks.js";
 import { getUserPermissionsDir } from "../extensions/runtime.js";
-import { assignPermissionHookIds, type RuntimePermissionHook } from "../src/enablement.js";
+import {
+  assignPermissionHookIds,
+  getEnabledPermissionHooks,
+  isPermissionHookEnabled,
+  type RuntimePermissionHook,
+} from "../src/enablement.js";
 import { restorePermissionsState } from "../src/state.js";
 
 const originalUserDir = process.env.PI_PERMISSIONS_USER_DIR;
@@ -64,29 +69,77 @@ describe("runtime hook notifications", () => {
 });
 
 describe("permission state restore", () => {
-  it("restores legacy disabled state as disabled loaded hooks", () => {
-    const hooks = assignPermissionHookIds([
-      {
-        name: "Git interference",
-        description: "Protect reviewed git state",
-        source: "user",
-        permissionRoot: "/permissions",
-        modulePath: "/permissions/git.ts",
-        handler: () => undefined,
-      },
-    ]);
+  it("restores complete hook snapshots", () => {
+    const restored = restorePermissionsState(
+      createContext([
+        {
+          hooks: [
+            { id: "abc", name: "Git interference", source: "user", enabled: false, changed: true },
+            { id: "def", name: "Deploy", source: "project", enabled: true, changed: false },
+          ],
+        },
+      ]),
+    );
 
-    const restored = restorePermissionsState(createContext([{ enabled: false }]), hooks);
-
-    expect(restored).toEqual({ [hooks[0]?.id ?? ""]: false });
+    expect(restored).toEqual({ abc: false, def: true });
   });
 
-  it("restores per-hook state entries", () => {
-    const restored = restorePermissionsState(createContext([{ hooks: { abc: false } }]), []);
+  it.each([
+    { enabled: false },
+    { hooks: { abc: false } },
+    { hooks: [{ id: "abc" }] },
+  ])("ignores legacy or malformed state $state", (state) => {
+    expect(restorePermissionsState(createContext([state]))).toEqual({});
+  });
 
-    expect(restored).toEqual({ abc: false });
+  it("ignores removed hooks, restores current hooks, and defaults new hooks enabled", () => {
+    const [removed, current, added] = assignPermissionHookIds([
+      createHook("Removed", "/permissions/removed.ts"),
+      createHook("Current", "/permissions/current.ts"),
+      createHook("Added", "/permissions/added.ts"),
+    ]);
+    if (!removed || !current || !added) throw new Error("expected runtime hooks");
+
+    const restored = restorePermissionsState(
+      createContext([
+        {
+          hooks: [
+            {
+              id: removed.id,
+              name: removed.name,
+              source: removed.source,
+              enabled: false,
+              changed: true,
+            },
+            {
+              id: current.id,
+              name: current.name,
+              source: current.source,
+              enabled: false,
+              changed: true,
+            },
+          ],
+        },
+      ]),
+    );
+    const loaded = [current, added];
+
+    expect(isPermissionHookEnabled(restored, current)).toBe(false);
+    expect(isPermissionHookEnabled(restored, added)).toBe(true);
+    expect(getEnabledPermissionHooks(loaded, restored)).toEqual([added]);
   });
 });
+
+function createHook(name: string, modulePath: string) {
+  return {
+    name,
+    description: name,
+    source: "user" as const,
+    permissionRoot: "/permissions",
+    modulePath,
+    handler: () => undefined,
+  };
+}
 
 function createContext(states: unknown[]): Parameters<typeof restorePermissionsState>[0] {
   return {

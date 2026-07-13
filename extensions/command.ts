@@ -2,7 +2,6 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import {
   findPermissionHooksByName,
-  formatActiveCount,
   setAllPermissionHooks,
   setPermissionHookEnabled,
 } from "../src/enablement.js";
@@ -31,8 +30,7 @@ export function registerPermissionsCommand(pi: ExtensionAPI, state: PermissionsR
         const nextEnablement = await showPermissionsSummary(ctx, state.hooks, state.enablement);
         if (!nextEnablement) return;
 
-        const status = commitEnablement(pi, ctx, state, nextEnablement);
-        ctx.ui.notify(formatActiveCount(status), "info");
+        commitEnablement(pi, ctx, state, nextEnablement);
         return;
       }
 
@@ -60,16 +58,20 @@ export function registerPermissionsCommand(pi: ExtensionAPI, state: PermissionsR
       const hook = matches[0];
       if (!hook) return;
 
-      commitEnablement(
+      const status = commitEnablement(
         pi,
         ctx,
         state,
         setPermissionHookEnabled(state.enablement, hook, parsed.action === "enable"),
       );
-      ctx.ui.notify(
-        `${hook.name} ${parsed.action === "enable" ? "enabled" : "disabled"}`,
-        parsed.action === "enable" ? "info" : "warning",
-      );
+      if (!status) {
+        ctx.ui.notify("Permissions unchanged", "info");
+      } else if (ctx.mode === "rpc") {
+        ctx.ui.notify(
+          `${hook.name} ${parsed.action === "enable" ? "enabled" : "disabled"}`,
+          parsed.action === "enable" ? "info" : "warning",
+        );
+      }
     },
   });
 }

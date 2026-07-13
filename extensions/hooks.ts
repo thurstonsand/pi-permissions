@@ -37,7 +37,7 @@ export function registerPermissionHooks(
     notifiedHookFailures.clear();
     const loaded = await loadRuntimeHooks(ctx);
     state.hooks = loaded.hooks;
-    state.enablement = restorePermissionsState(ctx, state.hooks);
+    state.enablement = restorePermissionsState(ctx);
     syncPermissionsStatus(ctx, state.hooks, state.enablement);
     notifyLoadErrors(ctx, loaded.errors);
   }

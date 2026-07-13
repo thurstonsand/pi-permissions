@@ -6,7 +6,7 @@ import {
   type RuntimePermissionHook,
   toggleAllPermissionHooks,
 } from "../../src/enablement.js";
-import { persistPermissionsState } from "../../src/state.js";
+import { createPermissionsState, persistPermissionsState } from "../../src/state.js";
 import { syncPermissionsStatus } from "../../src/ui/status.js";
 import type { PermissionsRuntimeState } from "../runtime.js";
 
@@ -15,9 +15,12 @@ export function commitEnablement(
   ctx: ExtensionContext,
   state: PermissionsRuntimeState,
   enablement: PermissionEnablement,
-): PermissionEnablementStatus {
+): PermissionEnablementStatus | undefined {
+  const persistedState = createPermissionsState(state.hooks, state.enablement, enablement);
+  if (!persistedState) return undefined;
+
   state.enablement = enablement;
-  persistPermissionsState(pi, enablement);
+  persistPermissionsState(pi, persistedState);
   syncPermissionsStatus(ctx, state.hooks, state.enablement);
   return getPermissionEnablementStatus(state.hooks, state.enablement);
 }
@@ -37,7 +40,17 @@ export function applyGlobalEnablement(
   }
 
   const status = commitEnablement(pi, ctx, state, compute(state.enablement, state.hooks));
-  ctx.ui.notify(toggleMessage(status.active, status.total), status.active > 0 ? "info" : "warning");
+  if (!status) {
+    ctx.ui.notify("Permissions unchanged", "info");
+    return;
+  }
+
+  if (ctx.mode === "rpc") {
+    ctx.ui.notify(
+      toggleMessage(status.active, status.total),
+      status.active > 0 ? "info" : "warning",
+    );
+  }
 }
 
 export function togglePermissions(
