@@ -2,6 +2,14 @@
 
 # Release notes
 
+## 0.9.0
+
+Adds guided permission authoring.
+
+### Added
+
+- Added the user-invoked `/skill:create-permission` skill for turning plain-language tool-call policies into user-, project-, or package-level permission modules and testing them through Pi.
+
 ## 0.8.0
 
 Adds editable bash approval prompts.
