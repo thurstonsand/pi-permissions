@@ -17,6 +17,11 @@
     {
       "matchManagers": ["mise"],
       "groupName": "mise tools"
+    },
+    {
+      "description": "Restricted registry lacks newer versions; remove once available",
+      "matchPackageNames": ["node-addon-api", "web-tree-sitter"],
+      "enabled": false
     }
   ]
 }

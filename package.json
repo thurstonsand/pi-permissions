@@ -21,6 +21,7 @@
   "files": [
     "examples",
     "extensions",
+    "skills",
     "src",
     "README.md",
     "CHANGELOG.md",
@@ -40,6 +41,9 @@
   "pi": {
     "extensions": [
       "./extensions/index.ts"
+    ],
+    "skills": [
+      "./skills/create-permission"
     ]
   },
   "scripts": {

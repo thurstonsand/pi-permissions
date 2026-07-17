@@ -10,6 +10,12 @@ pi install npm:@thurstonsand/pi-permissions
 
 Restart Pi after installing.
 
+The package includes a user-only skill that helps you author and test permissions:
+
+```text
+/skill:create-permission Ask before the agent pushes Git commits
+```
+
 For local development from a clone:
 
 ```bash
