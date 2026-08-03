@@ -92,5 +92,9 @@
     "protobufjs": false,
     "tree-sitter-bash": false,
     "@google/genai": false
+  },
+  "overrides": {
+    "brace-expansion": "5.0.12",
+    "node-addon-api": "8.9.1"
   }
 }
