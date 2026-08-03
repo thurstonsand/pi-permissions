@@ -85,5 +85,9 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "overrides": {
+    "brace-expansion": "5.0.8",
+    "node-addon-api": "8.8.0"
   }
 }
