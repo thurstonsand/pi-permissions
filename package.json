@@ -58,7 +58,7 @@
     "jiti": "^2.6.1",
     "minimatch": "^10.2.5",
     "tree-sitter-bash": "^0.25.1",
-    "web-tree-sitter": "^0.27.0"
+    "web-tree-sitter": "0.26.8"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
@@ -90,5 +90,9 @@
     "protobufjs": false,
     "tree-sitter-bash": false,
     "@google/genai": false
+  },
+  "overrides": {
+    "brace-expansion": "5.0.12",
+    "node-addon-api": "8.9.1"
   }
 }
