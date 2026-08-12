@@ -2,6 +2,14 @@
 
 # Release notes
 
+## 0.10.1
+
+Keeps long tool calls reviewable.
+
+### Fixed
+
+- The tool detail now renders in its own box, labeled with the tool name, and windows its content when the command is taller than the terminal. `f` and `b` page through the window, and a tag on the box's bottom border counts the lines off-screen in each direction. Previously an oversized command pushed the choices off the viewport and the approver had to decide blind.
+
 ## 0.10.0
 
 Adds a don't-ask-again prompt outcome.
