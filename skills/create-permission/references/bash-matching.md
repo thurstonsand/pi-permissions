@@ -19,11 +19,7 @@ const gitCommit = matchCommand({
   program: "git",
   subcommands: ["commit"],
   valueFlags: gitValueFlags,
-  onMatch: ({ spans }) =>
-    request({
-      guidance: "Review the commit message before approving.",
-      highlight: spans,
-    }),
+  onMatch: () => request({ guidance: "Review the commit message before approving." }),
 });
 
 export default function permissions(api: PermissionsAPI) {
@@ -103,11 +99,7 @@ A raw-command regex remains appropriate when the policy is intentionally textual
 
 ## Highlight choices
 
-Use the token spans from `matchCommand()` when the program and subcommand alone explain the decision:
-
-```ts
-onMatch: ({ spans }) => request({ highlight: spans });
-```
+A request that names no highlight is emphasized with the matched program and subcommand, so say nothing when those alone explain the decision. `match.spans` carries the same tokens for a request that mixes them with other evidence.
 
 Use whole-command spans when flags, arguments, or targets complete the evidence:
 

@@ -170,7 +170,16 @@ export function matchCommand(
       if (subcommand) spans.push(subcommand);
     }
 
-    return matches.length ? spec.onMatch({ commands: matches, spans }) : undefined;
+    if (!matches.length) return undefined;
+
+    const decision = spec.onMatch({ commands: matches, spans });
+    if (decision?.decision !== "request" || decision.prompt?.highlight !== undefined)
+      return decision;
+
+    return {
+      ...decision,
+      prompt: { ...decision.prompt, highlight: spans },
+    };
   };
 }
 

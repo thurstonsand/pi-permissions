@@ -126,11 +126,9 @@ Highlights resolve against `tool.detail`, exactly as rendered to the Approver. `
 
 Patterns emphasize every occurrence. Spans are sorted, clamped, and merged. A throwing callback or unmatched pattern produces no highlight without breaking the request.
 
-Use parser spans when bash structure produced the verdict:
+A `matchCommand()` request that names no highlight emphasizes the matched program and subcommand. Name one to override that, using parser spans when bash structure produced the verdict:
 
 ```ts
-onMatch: ({ spans }) => request({ highlight: spans });
-
 onMatch: ({ commands }) =>
   request({ highlight: commands.map((command) => command.span) });
 ```

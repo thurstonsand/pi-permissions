@@ -46,28 +46,25 @@ A permission module default-exports a function. Register checks with `api.onTool
 
 ```ts
 import {
+  matchCommand,
   matchTool,
   request,
   type PermissionsAPI,
 } from "@thurstonsand/pi-permissions";
 
-const GIT_COMMIT = /\bgit commit\b/;
+const gitCommit = matchCommand({
+  program: "git",
+  subcommands: ["commit"],
+  onMatch: () =>
+    request({ guidance: "Review the commit message before approving." }),
+});
 
 export default function permissions(api: PermissionsAPI) {
   api.onToolUse({
     name: "git commit",
     description: "Ask before the agent creates a commit.",
     handler(input) {
-      return matchTool(input.tool, {
-        bash(tool) {
-          if (GIT_COMMIT.test(tool.command)) {
-            return request({
-              guidance: "Review the commit message before approving.",
-              highlight: GIT_COMMIT,
-            });
-          }
-        },
-      });
+      return matchTool(input.tool, { bash: gitCommit });
     },
   });
 }
@@ -114,7 +111,7 @@ return request({
 return block("Do not edit generated files directly.");
 ```
 
-`guidance` adds request-specific text to the prompt. `highlight` emphasizes offending fragments of the tool detail with a string, RegExp, array of either, precomputed spans, or a callback that returns spans. `approveLabel`, `editLabel`, and `rejectLabel` change the button labels for that request.
+`guidance` adds request-specific text to the prompt. `highlight` emphasizes offending fragments of the tool detail with a string, RegExp, array of either, precomputed spans, or a callback that returns spans. If no highlight is provided, it uses the matched command by default. `approveLabel`, `editLabel`, and `rejectLabel` change the button labels for that request.
 
 A highlight callback receives the rendered tool detail and returns half-open `{ start, end }` offsets. Use `highlightSpans(detail, pattern)` inside a callback when you need pattern matching plus a little extra filtering.
 

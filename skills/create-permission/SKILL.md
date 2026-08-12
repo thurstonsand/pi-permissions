@@ -87,11 +87,11 @@ Choose the decision deliberately: use `block()` when execution should never be o
 
 Choose the highlight as the **smallest complete evidence**, not automatically the shortest match:
 
-1. Highlight the program and subcommand—for example, `git push`—when they alone explain the trigger.
+1. Say nothing when the program and subcommand—for example, `git push`—alone explain the trigger; a `matchCommand()` request highlights them by default.
 2. Highlight each whole offending command invocation when its flags, arguments, or target complete the evidence.
 3. Highlight only the specific arguments or path fragments when those are what offend.
 4. Use custom selection logic when repeated text or computed conditions make a simple pattern ambiguous.
-5. Omit the highlight when the rendered detail is already short and no fragment is more informative than the whole.
+5. Pass an empty span array to suppress emphasis entirely, when the rendered detail is already short and no fragment is more informative than the whole.
 
 A permission defaults to one dependency-free TypeScript file. The loader already provides TypeScript, Node built-ins, the public `pi-permissions` API, Pi's core packages, and TypeBox; the shell helpers include their parser dependencies. If the policy genuinely requires another package, explain why and get explicit approval before adding it or creating dependency-owning package machinery.
 

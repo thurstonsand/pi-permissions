@@ -139,20 +139,61 @@ describe("parseShellCommand", () => {
 });
 
 describe("matchCommand", () => {
-  it("matches program and first subcommand with ready-made highlight spans", async () => {
+  it("defaults request highlights to the matched command identity", async () => {
+    const command = 'ls xx; git commit -m "wip"';
+    const decision = await matchCommand({
+      program: "git",
+      subcommands: ["commit"],
+      onMatch: () => request(),
+    })(bash(command));
+
+    expect(decision?.decision).toBe("request");
+    if (decision?.decision !== "request") throw new Error("Expected request decision");
+    expect(highlightSpans(command, decision.prompt?.highlight ?? [])).toEqual([
+      { start: 7, end: 10 },
+      { start: 11, end: 17 },
+    ]);
+  });
+
+  it("matches through wrappers and value flags", async () => {
+    const command = "command git -C /repo add";
     const decision = await matchCommand({
       program: "git",
       subcommands: ["add"],
       valueFlags: gitValueFlags,
-      onMatch: (match) => request({ highlight: match.spans }),
-    })(bash("command git -C /repo add"));
+      onMatch: () => request(),
+    })(bash(command));
 
     expect(decision?.decision).toBe("request");
     if (decision?.decision !== "request") throw new Error("Expected request decision");
-    expect(highlightSpans("command git -C /repo add", decision.prompt?.highlight ?? [])).toEqual([
+    expect(highlightSpans(command, decision.prompt?.highlight ?? [])).toEqual([
       { start: 8, end: 11 },
       { start: 21, end: 24 },
     ]);
+  });
+
+  it("preserves an author-supplied request highlight", async () => {
+    const authoredDecision = request({ highlight: [] });
+    const decision = await matchCommand({
+      program: "git",
+      subcommands: ["push"],
+      onMatch: () => authoredDecision,
+    })(bash("git push --force"));
+
+    expect(decision).toBe(authoredDecision);
+    if (decision?.decision !== "request") throw new Error("Expected request decision");
+    expect(decision.prompt?.highlight).toEqual([]);
+  });
+
+  it("leaves block decisions untouched", async () => {
+    const authoredDecision = { decision: "block", reason: "No." } as const;
+    const decision = await matchCommand({
+      program: "git",
+      subcommands: ["push"],
+      onMatch: () => authoredDecision,
+    })(bash("git push"));
+
+    expect(decision).toBe(authoredDecision);
   });
 
   it("can match any positional when the author opts into looser matching", async () => {
