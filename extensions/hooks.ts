@@ -5,7 +5,11 @@ import {
   isToolCallEventType,
   type ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
-import { getEnabledPermissionHooks, setPermissionHookEnabled } from "../src/enablement.js";
+import {
+  getEnabledPermissionHooks,
+  isPermissionHookEnabled,
+  setPermissionHookEnabled,
+} from "../src/enablement.js";
 import { evaluatePermissionHooks, type PermissionHookFailure } from "../src/evaluator.js";
 import type { PendingApprovalNotes } from "../src/pending-approvals.js";
 import {
@@ -15,6 +19,7 @@ import {
   formatAgentFacingToolResultNote,
   formatHumanFacingApprovalNotification,
   formatHumanFacingEditNotification,
+  formatHumanFacingPendingRequestMessage,
   formatHumanFacingPermissionPrompt,
   formatHumanFacingRejectionNotification,
   formatHumanFacingSessionDisableNotification,
@@ -22,6 +27,8 @@ import {
 } from "../src/presentation.js";
 import { restorePermissionsState } from "../src/state.js";
 import { permissionToolInputFromToolCall } from "../src/tool-input.js";
+import { waitForOverlaysToClear } from "../src/ui/overlay-gate.js";
+import { announcePendingRequest } from "../src/ui/pending-request.js";
 import { type PermissionGateResult, showPermissionGate } from "../src/ui/permission-prompt.js";
 import { syncPermissionsStatus } from "../src/ui/status.js";
 import { loadRuntimeHooks, notifyLoadErrors, type PermissionsRuntimeState } from "./runtime.js";
@@ -99,17 +106,28 @@ export function registerPermissionHooks(
       };
     }
 
-    const prompt = formatHumanFacingPermissionPrompt(promptInput);
+    const bashEvent = isToolCallEventType("bash", event) ? event : undefined;
+    const editable = bashEvent ? { command: bashEvent.input.command } : undefined;
+
+    // The pending window opens the moment the hook decides to ask and closes
+    // when the approver answers, so the announcement and the attention ping
+    // cover the wait for a clear screen as well as the prompt itself.
+    const pending = announcePendingRequest(ctx, formatHumanFacingPendingRequestMessage(hook.name));
     pi.events.emit("glimpseui:attention:request", {
       attentionId: event.toolCallId,
       label: hook.name,
     });
 
-    const bashEvent = isToolCallEventType("bash", event) ? event : undefined;
-    const editable = bashEvent ? { command: bashEvent.input.command } : undefined;
-
     let result: Awaited<ReturnType<typeof showPermissionGate>>;
     try {
+      await waitForOverlaysToClear(ctx);
+
+      // The approver can disable the deciding hook from the pane they were in
+      // when the request arrived, which retracts the question we were queued to
+      // ask.
+      if (!isPermissionHookEnabled(state.enablement, hook)) return undefined;
+
+      const prompt = formatHumanFacingPermissionPrompt(promptInput);
       result = await showPermissionGate(ctx, {
         name: prompt.name,
         header: prompt.header,
@@ -129,6 +147,7 @@ export function registerPermissionHooks(
       pi.events.emit("glimpseui:attention:resolve", {
         attentionId: event.toolCallId,
       });
+      pending.end();
     }
 
     const outcome = handlePromptResult(

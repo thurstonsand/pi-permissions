@@ -150,6 +150,10 @@ export function formatHumanFacingEditNotification(hookName: string): string {
   return `Command edited (${hookName})`;
 }
 
+export function formatHumanFacingPendingRequestMessage(hookName: string): string {
+  return `Requesting permission for ${hookName}...`;
+}
+
 export function formatAgentFacingBlockReason(hookName: string, reason: string): string {
   return `Blocked by permission hook ${hookName}
 
