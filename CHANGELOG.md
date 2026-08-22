@@ -2,6 +2,18 @@
 
 # Release notes
 
+## 0.11.0
+
+Prompts now wait their turn.
+
+### Added
+
+- Prompts default to highlighting the matched piece; still overridable with a custom highlight if desired.
+
+### Fixed
+
+- A bug where a prompt and a different overlay (such as `/permissions`) popping at the same time presents a confusing UX. Now, the prompt just waits for other overlays to close before popping.
+
 ## 0.10.1
 
 Keeps long tool calls reviewable.
