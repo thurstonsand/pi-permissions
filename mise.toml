@@ -7,7 +7,7 @@ experimental = true
 enter = "mise bootstrap --yes --quiet"
 
 [tools]
-node = "lts"
+node = "24"
 
 [env]
 _.path = ["{{config_root}}/node_modules/.bin"]
@@ -55,6 +55,16 @@ depends = ["lint", "typecheck", "test"]
 [tasks.renovate]
 description = "Run Renovate"
 run = "renovate"
+tools.node = "24"
+tools."npm:renovate" = { version = "44.22.0", allow_builds = [
+  "re2",
+], trust_policy_excludes = [
+  "@yarnpkg/libzip@3.2.2",
+] }
+
+[tasks."lint:renovate"]
+description = "Validate Renovate configuration"
+run = "renovate-config-validator renovate.json"
 tools.node = "24"
 tools."npm:renovate" = { version = "44.22.0", allow_builds = [
   "re2",
