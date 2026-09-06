@@ -3,6 +3,8 @@ import {
   getKeybindings,
   matchesKey,
   type TUI,
+  type TuiMouseEvent,
+  type TuiMouseEventResult,
   truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
@@ -17,9 +19,18 @@ import {
   setPermissionHookEnabled,
   toggleAllPermissionHooks,
 } from "../enablement.js";
+import {
+  type LegendHit,
+  type LegendItem,
+  type LegendLine,
+  layoutLegend,
+  legendHitAt,
+} from "./legend.js";
 
 const MAX_VISIBLE_LINES = 12;
 const MAX_LIST_PANE_WIDTH = 30;
+// Row content starts past the modal's left border and its one space of padding.
+const CONTENT_X = 2;
 
 type ListLine =
   | { kind: "hook"; hook: RuntimePermissionHook; index: number }
@@ -57,6 +68,18 @@ export class PermissionsSummaryOverlay {
   private selectedIndex = 0;
   private scrollOffset = 0;
   private draft: PermissionEnablement;
+  // Overlay row -> the hook drawn on it, rebuilt every render. Only rows the
+  // list actually occupies; a detail pane taller than the window leaves rows
+  // below it that belong to no hook.
+  private readonly hookRows = new Map<number, number>();
+  private legendRow: { row: number; hits: LegendHit[] } | undefined;
+  // The hook a press landed on. Selecting one can scroll the list to reveal its
+  // origin label, and pi retargets the release with the origin captured at
+  // press, so the click's row number no longer means what it did.
+  private pressedHook: number | undefined;
+  // The list cell's columns. A hook row spans the full modal width, but the
+  // half of it right of the divider belongs to the detail pane.
+  private listCellEndX = 0;
 
   constructor(
     private tui: TUI,
@@ -110,7 +133,58 @@ export class PermissionsSummaryOverlay {
     }
   }
 
+  // Pi routes pointer input to overlays in fullscreen mode only. The wheel
+  // moves the selection rather than the window, because clampScroll derives
+  // scrollOffset from the selection on every render and would undo it.
+  handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+    if (event.button !== "left" && event.type !== "wheel") return undefined;
+
+    // Press reveals the hook's detail; the toggle lands on release, so pressing
+    // and sliding off abandons it. Assigned on every press, so an abandoned
+    // gesture cannot leak its hook into some later click.
+    if (event.type === "press") {
+      this.pressedHook = this.hookAt(event);
+      if (this.pressedHook === undefined) return undefined;
+      return { handled: true, focus: true, render: this.selectTo(this.pressedHook) };
+    }
+
+    if (event.type === "click" && this.pressedHook !== undefined) {
+      const index = this.pressedHook;
+      this.pressedHook = undefined;
+      this.selectTo(index);
+      this.toggleSelectedHook();
+      return { handled: true };
+    }
+
+    // The legend answers even with no hooks loaded, where cancel is still the
+    // only way out.
+    if (event.type === "click" && this.legendRow?.row === event.y) {
+      const hit = legendHitAt(this.legendRow.hits, event.x - CONTENT_X);
+      if (!hit) return undefined;
+      hit.run();
+      return { handled: true };
+    }
+
+    if (event.type === "wheel" && this.hooks.length > 0) {
+      const delta = event.wheelDelta ?? 0;
+      if (delta === 0) return undefined;
+      return { handled: true, render: this.moveSelection(delta < 0 ? -1 : 1) };
+    }
+
+    return undefined;
+  }
+
+  /** The hook a press can act on: a hook row, in the list pane's own columns. */
+  private hookAt(event: TuiMouseEvent): number | undefined {
+    // A hook row spans the whole modal, but everything right of the divider
+    // belongs to the detail pane.
+    if (event.x < CONTENT_X || event.x >= this.listCellEndX) return undefined;
+    return this.hookRows.get(event.y);
+  }
+
   render(width: number): string[] {
+    this.hookRows.clear();
+    this.legendRow = undefined;
     const modalWidth = Math.max(20, Math.min(100, width));
     const innerWidth = modalWidth - 2;
     const bodyWidth = innerWidth - 2;
@@ -124,7 +198,9 @@ export class PermissionsSummaryOverlay {
     if (this.hooks.length === 0) {
       lines.push(row(this.theme.fg("muted", "No permission hooks loaded")));
       lines.push(row());
-      lines.push(row(this.renderLegend(bodyWidth, "")));
+      const emptyLegend = this.renderLegend(bodyWidth, "");
+      this.legendRow = { row: lines.length, hits: emptyLegend.hits };
+      lines.push(row(emptyLegend.text));
       lines.push(border(`╰${"─".repeat(innerWidth)}╯`));
       return lines;
     }
@@ -147,14 +223,19 @@ export class PermissionsSummaryOverlay {
     const selectedHook = this.hooks[this.selectedIndex];
     const detailRows = selectedHook ? this.renderDetail(selectedHook, detailWidth) : [];
 
+    this.listCellEndX = CONTENT_X + (rail ? listWidth - 2 : listWidth);
     const divider = this.theme.fg("border", "│");
     for (let index = 0; index < Math.max(listRows.length, detailRows.length); index++) {
+      const listLine = visible[index];
+      if (listLine?.kind === "hook") this.hookRows.set(lines.length, listLine.index);
       const left = padRight(listRows[index] ?? "", listWidth);
       lines.push(row(`${left} ${divider} ${detailRows[index] ?? ""}`));
     }
 
     lines.push(row());
-    lines.push(row(this.renderLegend(bodyWidth, this.renderPosition(visible, listLines.length))));
+    const legend = this.renderLegend(bodyWidth, this.renderPosition(visible, listLines.length));
+    this.legendRow = { row: lines.length, hits: legend.hits };
+    lines.push(row(legend.text));
     lines.push(border(`╰${"─".repeat(innerWidth)}╯`));
     return lines;
   }
@@ -255,21 +336,26 @@ export class PermissionsSummaryOverlay {
     return `${first + 1}–${last + 1} of ${this.hooks.length}`;
   }
 
-  private renderLegend(width: number, position: string): string {
-    const left = [
-      this.hint("j/k ↑↓", "move"),
-      this.hint("space", "toggle"),
-      this.hint("g", "toggle all"),
-      this.hint("enter", "save"),
-      this.hint("esc", "cancel"),
-    ].join("  ");
-    const right = this.theme.fg("dim", position);
-    const gap = Math.max(1, width - visibleWidth(left) - visibleWidth(right));
-    return truncateToWidth(`${left}${" ".repeat(gap)}${right}`, width, "…", true);
+  // Direction-only hints name no single action, so they carry no handler.
+  private legendItems(): LegendItem[] {
+    return [
+      { key: "j/k ↑↓", description: "move" },
+      { key: "space", description: "toggle", run: () => this.toggleSelectedHook() },
+      {
+        key: "g",
+        description: "toggle all",
+        run: () => {
+          this.draft = toggleAllPermissionHooks(this.draft, this.hooks);
+          this.requestRender();
+        },
+      },
+      { key: "enter", description: "save", run: () => this.done(this.draft) },
+      { key: "esc", description: "cancel", run: () => this.done(undefined) },
+    ];
   }
 
-  private hint(key: string, description: string): string {
-    return this.theme.fg("dim", key) + this.theme.fg("muted", ` ${description}`);
+  private renderLegend(width: number, position: string): LegendLine {
+    return layoutLegend(this.theme, this.legendItems(), { width, trailing: position });
   }
 
   // Origin labels borrow distinct theme hues; the theme has no dedicated
@@ -296,11 +382,19 @@ export class PermissionsSummaryOverlay {
     this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, listLines.length - windowSize));
   }
 
-  private moveSelection(delta: number): void {
-    if (this.hooks.length === 0) return;
+  private moveSelection(delta: number): boolean {
+    if (this.hooks.length === 0) return false;
 
-    this.selectedIndex = Math.max(0, Math.min(this.hooks.length - 1, this.selectedIndex + delta));
+    return this.selectTo(this.selectedIndex + delta);
+  }
+
+  private selectTo(index: number): boolean {
+    const next = Math.max(0, Math.min(this.hooks.length - 1, index));
+    if (next === this.selectedIndex) return false;
+
+    this.selectedIndex = next;
     this.requestRender();
+    return true;
   }
 
   private toggleSelectedHook(): void {

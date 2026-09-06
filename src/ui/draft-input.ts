@@ -33,6 +33,29 @@ export class DraftInput {
     this.cursor = this.text.length;
   }
 
+  // Map a rendered row and column back into the buffer so a click can place the
+  // cursor. Mirrors renderLines' wrapping, trailing display space included, or
+  // the cursor lands somewhere other than where it was clicked.
+  placeCursor(width: number, row: number, column: number, prefixWidth = 0): void {
+    const wrapped = wrapDraftText(this.displayText(), width - prefixWidth);
+    const line = wrapped[Math.max(0, Math.min(row, wrapped.length - 1))];
+    if (!line) return;
+
+    const target = column - prefixWidth;
+    let visible = 0;
+    let index = line.text.length;
+    for (const grapheme of segmenter.segment(line.text)) {
+      const next = visible + visibleWidth(grapheme.segment);
+      if (target < next) {
+        index = grapheme.index;
+        break;
+      }
+      visible = next;
+    }
+
+    this.cursor = Math.min(line.startIndex + index, this.text.length);
+  }
+
   setText(text: string): void {
     this.text = text;
     this.toEnd();
@@ -90,8 +113,7 @@ export class DraftInput {
     const firstPrefix = opts.firstPrefix ?? "";
     const prefixWidth = visibleWidth(firstPrefix);
     const paint = (fragment: string) => this.theme.fg(opts.color, fragment);
-    const rawDisplay =
-      this.text.length > 0 && this.cursor < this.text.length ? this.text : `${this.text} `;
+    const rawDisplay = this.displayText();
     const wrapped = wrapDraftText(rawDisplay, width - prefixWidth);
 
     return wrapped.map((line, lineIndex) => {
@@ -115,6 +137,11 @@ export class DraftInput {
         paint(after)
       );
     });
+  }
+
+  // The buffer as painted: a cursor at the end needs a cell to sit in.
+  private displayText(): string {
+    return this.text.length > 0 && this.cursor < this.text.length ? this.text : `${this.text} `;
   }
 
   private deleteWordBackward(data: string): boolean {
@@ -221,9 +248,13 @@ function wrapDraftText(text: string, width: number): WrappedLine[] {
       if (currentWidth + pieceWidth > maxWidth) {
         if (breakIndex !== -1) {
           lines.push({ text: remaining.slice(0, breakIndex).trimEnd(), startIndex: offset });
-          const rest = remaining.slice(breakIndex).trimStart();
-          offset += breakIndex;
-          remaining = rest;
+          // The whitespace trimmed off the front of the next line was consumed
+          // from the buffer too. Leaving it out of `offset` shifts every later
+          // line's mapping back into the space that was swallowed.
+          const rest = remaining.slice(breakIndex);
+          const trimmed = rest.trimStart();
+          offset += breakIndex + (rest.length - trimmed.length);
+          remaining = trimmed;
         } else {
           const line = remaining.slice(0, part.index) || piece;
           const consumed = remaining.slice(0, part.index) ? part.index : piece.length;
