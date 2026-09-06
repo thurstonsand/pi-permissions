@@ -27,6 +27,7 @@ import {
   type LegendHit,
   type LegendItem,
   type LegendLine,
+  LegendPointer,
   layoutLegend,
   legendHitAt,
 } from "./legend.js";
@@ -120,6 +121,7 @@ class PermissionPromptOverlay implements Focusable {
   private notePrefixWidth = 0;
   private bodyWidth = 0;
   private readonly legendRows = new Map<number, LegendHit[]>();
+  private readonly legendPointer = new LegendPointer(() => this.tui.requestRender());
   // The option a press landed on. Selecting a choice re-renders the detail box
   // at a different height, and pi retargets the release with the origin it
   // captured at press, so the click arrives holding a row number that now
@@ -190,6 +192,13 @@ class PermissionPromptOverlay implements Focusable {
   // does: this prompt authorizes commands, and a selection that follows the
   // pointer would put whatever the mouse last grazed under the enter key.
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+    if (event.type === "press") this.pressedChoice = undefined;
+    if (!this.pressedChoice) {
+      const hits = this.legendRows.get(event.y);
+      const hit = hits ? legendHitAt(hits, event.x - CONTENT_X) : undefined;
+      const legend = this.legendPointer.handleMouse(event, hit);
+      if (legend) return legend;
+    }
     if (event.button !== "left" && event.type !== "wheel") return undefined;
 
     // Assigned on every press, so a gesture abandoned by dragging away cannot
@@ -213,8 +222,6 @@ class PermissionPromptOverlay implements Focusable {
 
     // Everything below reaches a click that no press of ours claimed, which pi
     // delivers with a freshly resolved row. Nothing has reflowed under it.
-    const legend = this.clickLegend(event);
-    if (legend) return legend;
     if (this.mode === "edit") return this.handleEditModeMouse(event);
 
     if (event.type === "wheel") {
@@ -257,18 +264,6 @@ class PermissionPromptOverlay implements Focusable {
     legend.forEach((line, index) => {
       if (line.hits.length > 0) this.legendRows.set(firstRow + index, line.hits);
     });
-  }
-
-  private clickLegend(event: TuiMouseEvent): TuiMouseEventResult | undefined {
-    if (event.type !== "click") return undefined;
-    const hits = this.legendRows.get(event.y);
-    if (!hits) return undefined;
-
-    const hit = legendHitAt(hits, event.x - CONTENT_X);
-    if (!hit) return undefined;
-
-    hit.run();
-    return { handled: true };
   }
 
   // Both fields answer to clicks alone, the way pi's own Editor does, so a drag
@@ -838,7 +833,8 @@ class PermissionPromptOverlay implements Focusable {
       { key: "esc", description: "abort", run: () => this.done({ kind: "reject", abort: true }) },
     ];
 
-    return [layoutLegend(this.theme, first), layoutLegend(this.theme, second)];
+    const options = { pressedKey: this.legendPointer.pressedKey };
+    return [layoutLegend(this.theme, first, options), layoutLegend(this.theme, second, options)];
   }
 
   private renderEditLegend(): LegendLine[] {
@@ -879,7 +875,8 @@ class PermissionPromptOverlay implements Focusable {
       },
     ];
 
-    return [layoutLegend(this.theme, first), layoutLegend(this.theme, second)];
+    const options = { pressedKey: this.legendPointer.pressedKey };
+    return [layoutLegend(this.theme, first, options), layoutLegend(this.theme, second, options)];
   }
 }
 

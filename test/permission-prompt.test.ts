@@ -59,6 +59,7 @@ function mount(
   const theme = {
     // Make the warning color visible so highlighted fragments are observable.
     fg: (color: string, text: string) => (color === "warning" ? `[[${text}]]` : text),
+    bg: (_color: string, text: string) => `\x1b[44m${text}\x1b[49m`,
     bold: (text: string) => text,
     inverse: (text: string) => text,
   };
@@ -538,6 +539,42 @@ describe("permission prompt mouse", () => {
     await flush();
 
     expect(h.result()).toEqual({ kind: "allow", note: "abXcd" });
+  });
+});
+
+describe("permission prompt legend press feedback", () => {
+  it.each([false, true])("highlights only the hint until release, edit=%s", async (edit) => {
+    const h = mount({ command: "echo ok" });
+    if (edit) h.type("2", KEY.enter);
+    const hint = edit ? "esc back" : "esc abort";
+    const row = h.rowOf(hint);
+    const x = (h.render()[row] ?? "").indexOf(hint);
+
+    expect(h.mouse("press", row, { x })).toEqual({ handled: true });
+    expect(h.render()[row]).toContain(`\x1b[44m${hint}\x1b[49m`);
+    expect(h.result()).toBeUndefined();
+    expect(h.mouse("release", row, { x })).toEqual({ handled: true, render: true });
+    expect(h.render()[row]).not.toContain("\x1b[44m");
+    h.mouse("click", row, { x });
+    await flush();
+    if (edit) expect(h.render().join("\n")).toContain("esc abort");
+    else expect(h.result()).toEqual({ kind: "reject", abort: true });
+  });
+
+  it("clears the hint highlight when dragging away or pressing padding", () => {
+    const h = mount();
+    const row = h.rowOf("esc abort");
+    const x = (h.render()[row] ?? "").indexOf("esc abort");
+    h.mouse("press", row, { x });
+    h.mouse("drag", row, { x: 0 });
+    expect(h.render()[row]).not.toContain("\x1b[44m");
+    h.mouse("release", row, { x: 0 });
+    expect(h.result()).toBeUndefined();
+
+    h.mouse("press", row, { x });
+    expect(h.mouse("press", row, { x: 0 })).toBeUndefined();
+    expect(h.render()[row]).not.toContain("\x1b[44m");
+    expect(h.mouse("click", row, { x: 0 })).toBeUndefined();
   });
 });
 

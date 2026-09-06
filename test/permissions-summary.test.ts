@@ -110,7 +110,9 @@ describe("permissions summary overlay mouse", () => {
 
   function mount(names: string[], done = vi.fn()) {
     const hooks = makeHooks(names);
-    const overlay = new PermissionsSummaryOverlay(createTui(), createTheme(), hooks, {}, done);
+    const theme = createTheme();
+    const background = vi.spyOn(theme, "bg");
+    const overlay = new PermissionsSummaryOverlay(createTui(), theme, hooks, {}, done);
     const render = () => overlay.render(WIDTH);
     render();
 
@@ -119,6 +121,7 @@ describe("permissions summary overlay mouse", () => {
       hooks,
       done,
       render,
+      background,
       rowOf: (needle: string) => {
         const row = render().findIndex((line) => line.includes(needle));
         if (row < 0) throw new Error(`No rendered line contains ${JSON.stringify(needle)}`);
@@ -224,6 +227,40 @@ describe("permissions summary overlay mouse", () => {
     cancelled.mouse("click", cancelRow, { x: cancelLine.indexOf("esc cancel") });
 
     expect(cancelled.done).toHaveBeenCalledWith(undefined);
+  });
+
+  it.each([{ names: [] }, { names: ["Git"] }])(
+    "highlights the cancel hint until release with hooks $names",
+    ({ names }) => {
+      const h = mount(names);
+      const row = h.rowOf("esc cancel");
+      const x = (h.render()[row] ?? "").indexOf("esc cancel");
+      expect(h.mouse("press", row, { x })).toEqual({ handled: true });
+      h.render();
+      expect(h.background).toHaveBeenCalledWith("selectedBg", "esc cancel");
+      expect(h.done).not.toHaveBeenCalled();
+      expect(h.mouse("release", row, { x })).toEqual({ handled: true, render: true });
+      h.background.mockClear();
+      h.render();
+      expect(h.background).not.toHaveBeenCalledWith("selectedBg", "esc cancel");
+      h.mouse("click", row, { x });
+      expect(h.done).toHaveBeenCalledWith(undefined);
+    },
+  );
+
+  it("clears a dragged legend highlight without acting", () => {
+    const h = mount(["Git"]);
+    const row = h.rowOf("esc cancel");
+    const x = (h.render()[row] ?? "").indexOf("esc cancel");
+    h.mouse("press", row, { x });
+    h.render();
+    expect(h.background).toHaveBeenCalledWith("selectedBg", "esc cancel");
+    h.mouse("drag", row, { x: 0 });
+    h.background.mockClear();
+    h.render();
+    expect(h.background).not.toHaveBeenCalledWith("selectedBg", "esc cancel");
+    h.mouse("release", row, { x: 0 });
+    expect(h.done).not.toHaveBeenCalled();
   });
 
   it("cancels from the legend even with no hooks loaded", () => {

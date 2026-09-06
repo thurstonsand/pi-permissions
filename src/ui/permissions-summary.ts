@@ -23,6 +23,7 @@ import {
   type LegendHit,
   type LegendItem,
   type LegendLine,
+  LegendPointer,
   layoutLegend,
   legendHitAt,
 } from "./legend.js";
@@ -73,6 +74,7 @@ export class PermissionsSummaryOverlay {
   // below it that belong to no hook.
   private readonly hookRows = new Map<number, number>();
   private legendRow: { row: number; hits: LegendHit[] } | undefined;
+  private readonly legendPointer = new LegendPointer(() => this.requestRender());
   // The hook a press landed on. Selecting one can scroll the list to reveal its
   // origin label, and pi retargets the release with the origin captured at
   // press, so the click's row number no longer means what it did.
@@ -137,6 +139,15 @@ export class PermissionsSummaryOverlay {
   // moves the selection rather than the window, because clampScroll derives
   // scrollOffset from the selection on every render and would undo it.
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+    if (event.type === "press") this.pressedHook = undefined;
+    if (this.pressedHook === undefined) {
+      const hit =
+        this.legendRow?.row === event.y
+          ? legendHitAt(this.legendRow.hits, event.x - CONTENT_X)
+          : undefined;
+      const legend = this.legendPointer.handleMouse(event, hit);
+      if (legend) return legend;
+    }
     if (event.button !== "left" && event.type !== "wheel") return undefined;
 
     // Press reveals the hook's detail; the toggle lands on release, so pressing
@@ -153,15 +164,6 @@ export class PermissionsSummaryOverlay {
       this.pressedHook = undefined;
       this.selectTo(index);
       this.toggleSelectedHook();
-      return { handled: true };
-    }
-
-    // The legend answers even with no hooks loaded, where cancel is still the
-    // only way out.
-    if (event.type === "click" && this.legendRow?.row === event.y) {
-      const hit = legendHitAt(this.legendRow.hits, event.x - CONTENT_X);
-      if (!hit) return undefined;
-      hit.run();
       return { handled: true };
     }
 
@@ -355,7 +357,11 @@ export class PermissionsSummaryOverlay {
   }
 
   private renderLegend(width: number, position: string): LegendLine {
-    return layoutLegend(this.theme, this.legendItems(), { width, trailing: position });
+    return layoutLegend(this.theme, this.legendItems(), {
+      width,
+      trailing: position,
+      pressedKey: this.legendPointer.pressedKey,
+    });
   }
 
   // Origin labels borrow distinct theme hues; the theme has no dedicated
