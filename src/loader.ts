@@ -94,13 +94,15 @@ export function discoverPermissionModules(
 
   for (const entry of entries) {
     const entryPath = join(dir, entry.name);
+    // A dangling symlink stats as undefined; keep it as a candidate so loading reports it.
+    const target = entry.isSymbolicLink() ? statSync(entryPath, { throwIfNoEntry: false }) : entry;
 
-    if (entry.isFile() && isLoadableModuleFile(entry.name)) {
+    if ((target === undefined || target.isFile()) && isLoadableModuleFile(entry.name)) {
       candidates.push({ source, path: entryPath, permissionRoot: dir });
       continue;
     }
 
-    if (!entry.isDirectory()) continue;
+    if (!target?.isDirectory()) continue;
 
     const manifestPath = join(entryPath, "package.json");
     if (!existsSync(manifestPath)) continue;

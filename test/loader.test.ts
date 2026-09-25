@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -88,5 +88,56 @@ describe("loadPermissionHooksFromDir", () => {
     expect(result.hooks[0]?.name).toBe("package");
     expect(result.hooks[0]?.source).toBe("project");
     expect(result.hooks[0]?.permissionRoot).toBe(packageDir);
+  });
+
+  it("follows symlinked permission modules and packages", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pi-permissions-"));
+    const targets = mkdtempSync(join(tmpdir(), "pi-permissions-targets-"));
+    const packageDir = join(targets, "package-policy");
+    tempDirs.push(dir, targets);
+    writeFileSync(
+      join(targets, "rules.ts"),
+      `export default function permissions(api) {
+        api.onToolUse({ name: "linked file", description: "via symlink", handler() {} });
+      }`,
+    );
+    mkdirSync(packageDir);
+    writeFileSync(
+      join(packageDir, "package.json"),
+      JSON.stringify({ pi: { permissions: ["./index.ts"] } }),
+    );
+    writeFileSync(
+      join(packageDir, "index.ts"),
+      `export default function permissions(api) {
+        api.onToolUse({ name: "linked package", description: "via symlink", handler() {} });
+      }`,
+    );
+    symlinkSync(join(targets, "rules.ts"), join(dir, "rules.ts"));
+    symlinkSync(packageDir, join(dir, "package-policy"));
+
+    const result = await loadPermissionHooksFromDir(dir, "user");
+
+    expect(result.errors).toEqual([]);
+    expect(result.hooks.map((hook) => [hook.name, hook.permissionRoot]).sort()).toEqual([
+      ["linked file", dir],
+      ["linked package", join(dir, "package-policy")],
+    ]);
+  });
+
+  it("reports dangling symlinked permission modules", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pi-permissions-"));
+    tempDirs.push(dir);
+    symlinkSync(join(dir, "missing.ts"), join(dir, "rules.ts"));
+
+    const result = await loadPermissionHooksFromDir(dir, "user");
+
+    expect(result.hooks).toEqual([]);
+    expect(result.errors).toEqual([
+      {
+        source: "user",
+        path: join(dir, "rules.ts"),
+        error: "Permission module file does not exist",
+      },
+    ]);
   });
 });
