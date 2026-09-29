@@ -97,6 +97,10 @@ write.path;
 
 For custom tools, use `isCustomToolInput()` or the `custom` branch of `matchTool()` to narrow by exact tool name.
 
+Any tool may carry `tool.annotations`, the unverified hints its author declares (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`). Pi's built-in MCP support names tools `mcp__<server>__<tool>` and passes along the hints each server declares.
+
+Hooks also see calls that tools make on the model's behalf, such as the tool calls inside a `codemode` script. Approval notes and edits on those calls are relayed to the agent on the calling tool's result.
+
 Decisions are one of:
 
 ```ts
@@ -206,6 +210,26 @@ export default function permissions(api: PermissionsAPI) {
 ```
 
 ![Blocked .env read](images/example-block-env-read.png)
+
+### [Ask before MCP tools that change something](examples/mcp-writes.ts)
+
+```ts
+import { type PermissionsAPI, request } from "@thurstonsand/pi-permissions";
+
+export default function permissions(api: PermissionsAPI) {
+  api.onToolUse({
+    name: "MCP writes",
+    description: "Ask before an MCP tool that is not read-only.",
+    handler(input) {
+      const { toolName, annotations } = input.tool;
+      if (!toolName.startsWith("mcp__") || annotations?.readOnlyHint) return undefined;
+      return request();
+    },
+  });
+}
+```
+
+MCP servers that omit `readOnlyHint` are treated as able to change things, matching the MCP default.
 
 ### [Ask before a pi-mcp-adapter tool](examples/github-release.ts)
 

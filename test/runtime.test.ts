@@ -8,6 +8,7 @@ import {
   isPermissionHookEnabled,
   type RuntimePermissionHook,
 } from "../src/enablement.js";
+import { PendingApprovalNotes } from "../src/pending-approvals.js";
 import { restorePermissionsState } from "../src/state.js";
 
 const originalUserDir = process.env.PI_PERMISSIONS_USER_DIR;
@@ -48,9 +49,10 @@ describe("runtime hook notifications", () => {
           handlers.set(event, handler);
         },
         events: { emit: () => undefined },
+        getAllTools: () => [],
       } as never,
       { hooks, enablement: {} },
-      { discardOutstandingNotes: () => undefined, consumeForToolResult: () => undefined } as never,
+      new PendingApprovalNotes(),
     );
 
     const ctx = {

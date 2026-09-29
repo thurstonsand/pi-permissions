@@ -7,6 +7,7 @@ import {
   setPermissionHookEnabled,
 } from "../src/enablement.js";
 import { PendingApprovalNotes } from "../src/pending-approvals.js";
+import type { PermissionInput } from "../src/tool-input.js";
 import { type PermissionGateResult, showPermissionGate } from "../src/ui/permission-prompt.js";
 
 vi.mock("../src/ui/permission-prompt.js", () => ({ showPermissionGate: vi.fn() }));
@@ -48,11 +49,13 @@ Authorization log:
 it is fine`,
       "Authorization no longer required (Git mutations)... be careful",
     ]);
-    expect(runtime.pendingApprovalNotes.consumeForToolResult("call-1")).toEqual({
-      kind: "approval",
-      hookName: "Git mutations",
-      note: "it is fine",
-    });
+    expect(runtime.pendingApprovalNotes.consumeForToolResult("call-1")).toEqual([
+      {
+        kind: "approval",
+        hookName: "Git mutations",
+        note: "it is fine",
+      },
+    ]);
   });
 
   it("leaves the hook enabled for a plain approval", async () => {
@@ -63,6 +66,71 @@ it is fine`,
     expect(isPermissionHookEnabled(runtime.state.enablement, runtime.hook)).toBe(true);
     expect(runtime.appendEntry).not.toHaveBeenCalled();
     expect(runtime.notifications).toEqual([]);
+  });
+});
+
+describe("approval notes", () => {
+  it("prepends the note to the tool result and keeps its structured content", async () => {
+    const runtime = createRuntime({ kind: "allow", note: "it is fine" });
+
+    await runtime.toolCall();
+    const result = await runtime.toolResult({
+      toolCallId: "call-1",
+      structuredContent: { output: "output" },
+    });
+
+    expect(result).toEqual({
+      content: [
+        { type: "text", text: expect.stringContaining("it is fine") },
+        { type: "text", text: "output" },
+      ],
+      structuredContent: { output: "output" },
+    });
+  });
+
+  it("relays notes from nested calls on the calling tool's result", async () => {
+    const runtime = createRuntime({ kind: "allow", note: "it is fine" });
+
+    await runtime.toolCall({ toolCallId: "code-1/1", parentToolCallId: "code-1" });
+    await runtime.toolCall({ toolCallId: "code-1/2", parentToolCallId: "code-1" });
+    const nested = await runtime.toolResult({
+      toolCallId: "code-1/1",
+      parentToolCallId: "code-1",
+      structuredContent: { output: "output" },
+    });
+    await runtime.toolResult({ toolCallId: "code-1/2", parentToolCallId: "code-1" });
+    const parent = (await runtime.toolResult({ toolCallId: "code-1" })) as {
+      content: { text: string }[];
+    };
+
+    expect(nested).toBeUndefined();
+    expect(parent.content.map((block) => block.text)).toEqual([
+      expect.stringContaining("it is fine"),
+      expect.stringContaining("it is fine"),
+      "output",
+    ]);
+  });
+});
+
+describe("tool annotations", () => {
+  it("hands the tool's annotations to permission hooks", async () => {
+    const runtime = createRuntime(
+      { kind: "allow" },
+      {
+        tools: [
+          { name: "mcp__docs__search", annotations: { readOnlyHint: true } },
+          { name: "read" },
+        ],
+      },
+    );
+
+    await runtime.toolCall({ toolName: "mcp__docs__search", input: { query: "x" } });
+    await runtime.toolCall();
+
+    expect(runtime.seenInputs.map((input) => input.tool.annotations)).toEqual([
+      { readOnlyHint: true },
+      undefined,
+    ]);
   });
 });
 
@@ -145,7 +213,11 @@ describe("pending request lifecycle", () => {
 
 function createRuntime(
   result: PermissionGateResult,
-  options: { overlayOpen?: boolean; deferPrompt?: boolean } = {},
+  options: {
+    overlayOpen?: boolean;
+    deferPrompt?: boolean;
+    tools?: { name: string; annotations?: object }[];
+  } = {},
 ) {
   let overlayOpen = options.overlayOpen ?? false;
   let releasePrompt: (() => void) | undefined;
@@ -164,6 +236,7 @@ function createRuntime(
     });
   });
 
+  const seenInputs: PermissionInput[] = [];
   const [hook] = assignPermissionHookIds([
     {
       name: "Git mutations",
@@ -171,7 +244,10 @@ function createRuntime(
       source: "user",
       permissionRoot: "/permissions",
       modulePath: "/permissions/git.ts",
-      handler: () => ({ decision: "request" as const }),
+      handler: (input: PermissionInput) => {
+        seenInputs.push(input);
+        return { decision: "request" as const };
+      },
     },
   ]);
   if (!hook) throw new Error("expected runtime hook");
@@ -193,6 +269,7 @@ function createRuntime(
         handlers.set(event, handler);
       },
       appendEntry,
+      getAllTools: () => options.tools ?? [],
       events: {
         emit: (name: string, payload: { attentionId: string }) => {
           attentionEvents.push([name.slice(name.lastIndexOf(":") + 1), payload.attentionId]);
@@ -242,10 +319,13 @@ function createRuntime(
       if (!releasePrompt) throw new Error("prompt was never mounted");
       releasePrompt();
     },
-    toolCall: () =>
+    seenInputs,
+    toolCall: (event: object = {}) =>
       handlers.get("tool_call")?.(
-        { toolCallId: "call-1", toolName: "read", input: { path: "a.ts" } },
+        { toolCallId: "call-1", toolName: "read", input: { path: "a.ts" }, ...event },
         ctx,
       ),
+    toolResult: (event: object) =>
+      handlers.get("tool_result")?.({ content: [{ type: "text", text: "output" }], ...event }, ctx),
   };
 }

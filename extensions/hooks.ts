@@ -57,17 +57,29 @@ export function registerPermissionHooks(
   pi.on("turn_end", () => pendingApprovalNotes.discardOutstandingNotes());
 
   pi.on("tool_result", async (event) => {
-    const approval = pendingApprovalNotes.consumeForToolResult(event.toolCallId);
-    if (!approval) return undefined;
+    const notes = pendingApprovalNotes.consumeForToolResult(event.toolCallId);
+    if (notes.length === 0) return undefined;
+
+    // A nested call's result only reaches the tool that made it (e.g. a codemode
+    // script), never the model, so the note rides up to the calling tool's result.
+    if (event.parentToolCallId) {
+      pendingApprovalNotes.rememberForToolResult(event.parentToolCallId, ...notes);
+      return undefined;
+    }
 
     return {
       content: [
-        {
+        ...notes.map((note) => ({
           type: "text" as const,
-          text: `${formatAgentFacingToolResultNote(approval)}\n`,
-        },
+          text: `${formatAgentFacingToolResultNote(note)}\n`,
+        })),
         ...event.content,
       ],
+      // Pi drops structuredContent when content is replaced without it; the
+      // prepended note leaves the structured result accurate.
+      ...(event.structuredContent !== undefined
+        ? { structuredContent: event.structuredContent }
+        : {}),
     };
   });
 
@@ -76,7 +88,11 @@ export function registerPermissionHooks(
       getEnabledPermissionHooks(state.hooks, state.enablement),
       {
         cwd: ctx.cwd,
-        tool: permissionToolInputFromToolCall(event, ctx.cwd),
+        tool: permissionToolInputFromToolCall(
+          event,
+          ctx.cwd,
+          pi.getAllTools().find((tool) => tool.name === event.toolName)?.annotations,
+        ),
       },
     );
     notifyHookFailures(ctx, evaluationResult.failures, notifiedHookFailures);

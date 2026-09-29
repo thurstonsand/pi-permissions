@@ -7,6 +7,7 @@ import {
   isToolCallEventType,
   type LsToolCallEvent,
   type ReadToolCallEvent,
+  type ToolAnnotations,
   type ToolCallEvent,
   type WriteToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
@@ -43,6 +44,8 @@ interface BasePermissionToolInput<TName extends string, TInput> {
   toolName: TName;
   input: TInput;
   detail: string;
+  /** Unverified hints the tool's author declares, e.g. an MCP server's `readOnlyHint`. */
+  annotations?: ToolAnnotations;
 }
 
 export interface BashPermissionToolInput
@@ -98,7 +101,13 @@ export interface CustomPermissionToolInput<TName extends string = string>
 export function permissionToolInputFromToolCall(
   event: ToolCallEvent,
   cwd: string,
+  annotations: ToolAnnotations | undefined,
 ): PermissionToolInput {
+  const tool = normalizeToolInput(event, cwd);
+  return annotations ? { ...tool, annotations } : tool;
+}
+
+function normalizeToolInput(event: ToolCallEvent, cwd: string): PermissionToolInput {
   if (isToolCallEventType("bash", event)) {
     return {
       toolName: "bash",
