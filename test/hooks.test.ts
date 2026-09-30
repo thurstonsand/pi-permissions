@@ -110,6 +110,21 @@ describe("approval notes", () => {
       "output",
     ]);
   });
+
+  it("relays rejections of nested calls on the calling tool's result", async () => {
+    const runtime = createRuntime({ kind: "reject", abort: false, note: "not yet" });
+
+    const blocked = await runtime.toolCall({ toolCallId: "code-1/1", parentToolCallId: "code-1" });
+    const parent = (await runtime.toolResult({ toolCallId: "code-1" })) as {
+      content: { text: string }[];
+    };
+
+    expect(blocked).toEqual({ block: true, reason: expect.stringContaining("not yet") });
+    expect(parent.content.map((block) => block.text)).toEqual([
+      expect.stringMatching(/^Blocked by user via permission hook .*not yet/s),
+      "output",
+    ]);
+  });
 });
 
 describe("tool annotations", () => {

@@ -12,9 +12,15 @@ export type EditNote = {
   note?: string;
 };
 
+export type RejectionNote = {
+  hookName: string;
+  note?: string;
+};
+
 export type PendingToolResultNote =
   | ({ kind: "approval" } & ApprovalNote)
-  | ({ kind: "edit" } & EditNote);
+  | ({ kind: "edit" } & EditNote)
+  | ({ kind: "rejection" } & RejectionNote);
 
 export type PermissionPromptInput = {
   hookName: string;
@@ -137,9 +143,14 @@ ${note}`;
 }
 
 export function formatAgentFacingToolResultNote(note: PendingToolResultNote): string {
-  return note.kind === "edit"
-    ? formatAgentFacingEditNote(note)
-    : formatAgentFacingApprovalNote(note);
+  switch (note.kind) {
+    case "approval":
+      return formatAgentFacingApprovalNote(note);
+    case "edit":
+      return formatAgentFacingEditNote(note);
+    case "rejection":
+      return formatAgentFacingRejectionReason(note.hookName, note.note);
+  }
 }
 
 export function formatHumanFacingSessionDisableNotification(hookName: string): string {

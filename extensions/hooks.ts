@@ -242,6 +242,15 @@ function handlePromptResult(
     case "reject": {
       const reason = formatAgentFacingRejectionReason(hookName, result.note);
       ctx.ui.notify(formatHumanFacingRejectionNotification(hookName, result.note), "warning");
+      // The block reason only reaches the tool that made a nested call, so the
+      // model hears about the rejection on the calling tool's result instead.
+      if (event.parentToolCallId) {
+        pendingApprovalNotes.rememberForToolResult(event.parentToolCallId, {
+          kind: "rejection",
+          hookName,
+          ...(result.note ? { note: result.note } : {}),
+        });
+      }
       if (result.abort) {
         setTimeout(() => ctx.abort(), 0);
       }
