@@ -3,13 +3,13 @@ import { matchTool, type PermissionsAPI, request } from "@thurstonsand/pi-permis
 export default function permissions(api: PermissionsAPI) {
   api.onToolUse({
     name: "GitHub release",
-    description: "Ask before creating a release through pi-mcp-adapter.",
+    description: "Ask before creating a GitHub release over MCP.",
     handler(input) {
       return matchTool(input.tool, {
         custom: {
-          github_create_release(tool) {
+          mcp__github__create_release() {
             return request({
-              guidance: `Check the tag, target repository, and release notes.\n\n${tool.detail}`,
+              guidance: "Check the tag, target repository, and release notes.",
               approveLabel: "Create release",
               rejectLabel: "Cancel release",
             });

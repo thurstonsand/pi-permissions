@@ -231,9 +231,9 @@ export default function permissions(api: PermissionsAPI) {
 
 MCP servers that omit `readOnlyHint` are treated as able to change things, matching the MCP default.
 
-### [Ask before a pi-mcp-adapter tool](examples/github-release.ts)
+### [Ask before a specific MCP tool](examples/github-release.ts)
 
-[`pi-mcp-adapter`](https://github.com/nicobailon/pi-mcp-adapter) can expose MCP tools directly as Pi tools. If a GitHub MCP server exposes a direct tool named `github_create_release`, you can match it like any other Pi tool.
+Pi names MCP tools `mcp__<server>__<tool>`, after the server key in `mcp.json`. If a server named `github` exposes `create_release`, you can match it like any other Pi tool. This works for direct tools and for calls made from `codemode` alike.
 
 ```ts
 import {
@@ -245,13 +245,13 @@ import {
 export default function permissions(api: PermissionsAPI) {
   api.onToolUse({
     name: "GitHub release",
-    description: "Ask before creating a release through pi-mcp-adapter.",
+    description: "Ask before creating a GitHub release over MCP.",
     handler(input) {
       return matchTool(input.tool, {
         custom: {
-          github_create_release(tool) {
+          mcp__github__create_release() {
             return request({
-              guidance: `Check the tag, target repository, and release notes.\n\n${tool.detail}`,
+              guidance: "Check the tag, target repository, and release notes.",
               approveLabel: "Create release",
               rejectLabel: "Cancel release",
             });
