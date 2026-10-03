@@ -4,15 +4,17 @@
     "config:recommended",
     "customManagers:biomeVersions",
     ":configMigration",
-    ":maintainLockFilesWeekly",
-    "security:minimumReleaseAgeNpm",
+    ":disableRateLimiting",
+    ":prImmediately",
     "abandonments:recommended",
     ":enableVulnerabilityAlertsWithAdditionalLabel(security)"
   ],
   "dependencyDashboard": true,
   "timezone": "America/New_York",
   "labels": ["dependencies"],
-  "schedule": ["* * * * 1"],
+  "lockFileMaintenance": {
+    "enabled": true
+  },
   "packageRules": [
     {
       "matchManagers": ["github-actions"],
