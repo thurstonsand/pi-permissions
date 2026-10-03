@@ -13,7 +13,8 @@
   "timezone": "America/New_York",
   "labels": ["dependencies"],
   "lockFileMaintenance": {
-    "enabled": true
+    "enabled": true,
+    "schedule": ["at any time"]
   },
   "packageRules": [
     {
