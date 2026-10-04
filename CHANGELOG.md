@@ -2,6 +2,23 @@
 
 # Release notes
 
+## 0.12.0
+
+Supports Pi 1.0, its built-in MCP, and codemode.
+
+### Added
+
+- Permission hooks receive `input.tool.annotations`, the hints a tool declares (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`). Pi's built-in MCP passes along the hints each server declares, so a hook can skip read-only MCP tools and ask before the rest. See the new "Ask before MCP tools that change something" example.
+
+### Changed
+
+- Requires Pi 0.99 or later for nested tool calls.
+- The GitHub release example matches Pi's built-in MCP tool names (`mcp__<server>__<tool>`) instead of `pi-mcp-adapter`.
+
+### Fixed
+
+- Approval notes no longer strip a tool's structured result. A noted `bash` call inside a script now still returns bash's structured output.
+
 ## 0.11.0
 
 Prompts now wait their turn.
