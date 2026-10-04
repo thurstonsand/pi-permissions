@@ -12,15 +12,10 @@ export type EditNote = {
   note?: string;
 };
 
-export type RejectionNote = {
-  hookName: string;
-  note?: string;
-};
-
 export type PendingToolResultNote =
   | ({ kind: "approval" } & ApprovalNote)
   | ({ kind: "edit" } & EditNote)
-  | ({ kind: "rejection" } & RejectionNote);
+  | { kind: "block"; reason: string };
 
 export type PermissionPromptInput = {
   hookName: string;
@@ -148,8 +143,8 @@ export function formatAgentFacingToolResultNote(note: PendingToolResultNote): st
       return formatAgentFacingApprovalNote(note);
     case "edit":
       return formatAgentFacingEditNote(note);
-    case "rejection":
-      return formatAgentFacingRejectionReason(note.hookName, note.note);
+    case "block":
+      return note.reason;
   }
 }
 

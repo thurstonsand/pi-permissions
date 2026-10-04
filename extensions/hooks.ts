@@ -101,10 +101,11 @@ export function registerPermissionHooks(
     const { hook, input, decision } = evaluationResult.evaluation;
 
     if (decision.decision === "block") {
-      return {
-        block: true,
-        reason: formatAgentFacingBlockReason(hook.name, decision.reason),
-      };
+      return blockToolCall(
+        event,
+        formatAgentFacingBlockReason(hook.name, decision.reason),
+        pendingApprovalNotes,
+      );
     }
 
     const promptInput: PermissionPromptInput = {
@@ -116,10 +117,7 @@ export function registerPermissionHooks(
     };
 
     if (!ctx.hasUI) {
-      return {
-        block: true,
-        reason: formatAgentFacingNoUiReason(promptInput),
-      };
+      return blockToolCall(event, formatAgentFacingNoUiReason(promptInput), pendingApprovalNotes);
     }
 
     const bashEvent = isToolCallEventType("bash", event) ? event : undefined;
@@ -240,21 +238,28 @@ function handlePromptResult(
       }
       return undefined;
     case "reject": {
-      const reason = formatAgentFacingRejectionReason(hookName, result.note);
       ctx.ui.notify(formatHumanFacingRejectionNotification(hookName, result.note), "warning");
-      // The block reason only reaches the tool that made a nested call, so the
-      // model hears about the rejection on the calling tool's result instead.
-      if (event.parentToolCallId) {
-        pendingApprovalNotes.rememberForToolResult(event.parentToolCallId, {
-          kind: "rejection",
-          hookName,
-          ...(result.note ? { note: result.note } : {}),
-        });
-      }
       if (result.abort) {
         setTimeout(() => ctx.abort(), 0);
       }
-      return { block: true, reason };
+      return blockToolCall(
+        event,
+        formatAgentFacingRejectionReason(hookName, result.note),
+        pendingApprovalNotes,
+      );
     }
   }
+}
+
+function blockToolCall(
+  event: ToolCallEvent,
+  reason: string,
+  pendingApprovalNotes: PendingApprovalNotes,
+): { block: true; reason: string } {
+  // A nested call's block reason only reaches the script that made it, which
+  // may swallow it, so the model also hears about it on the calling tool's result.
+  if (event.parentToolCallId) {
+    pendingApprovalNotes.rememberForToolResult(event.parentToolCallId, { kind: "block", reason });
+  }
+  return { block: true, reason };
 }

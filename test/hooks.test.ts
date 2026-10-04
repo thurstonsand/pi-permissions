@@ -1,6 +1,7 @@
 import type { TUI } from "@earendil-works/pi-tui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerPermissionHooks } from "../extensions/hooks.js";
+import type { PermissionDecision } from "../src/api.js";
 import {
   assignPermissionHookIds,
   isPermissionHookEnabled,
@@ -125,6 +126,24 @@ describe("approval notes", () => {
       "output",
     ]);
   });
+
+  it("relays hook blocks of nested calls on the calling tool's result", async () => {
+    const runtime = createRuntime(
+      { kind: "allow" },
+      { decision: { decision: "block", reason: "never rm" } },
+    );
+
+    const blocked = await runtime.toolCall({ toolCallId: "code-1/1", parentToolCallId: "code-1" });
+    const parent = (await runtime.toolResult({ toolCallId: "code-1" })) as {
+      content: { text: string }[];
+    };
+
+    expect(blocked).toEqual({ block: true, reason: expect.stringContaining("never rm") });
+    expect(parent.content.map((block) => block.text)).toEqual([
+      expect.stringMatching(/^Blocked by permission hook Git mutations.*never rm/s),
+      "output",
+    ]);
+  });
 });
 
 describe("tool annotations", () => {
@@ -232,6 +251,7 @@ function createRuntime(
     overlayOpen?: boolean;
     deferPrompt?: boolean;
     tools?: { name: string; annotations?: object }[];
+    decision?: PermissionDecision;
   } = {},
 ) {
   let overlayOpen = options.overlayOpen ?? false;
@@ -261,7 +281,7 @@ function createRuntime(
       modulePath: "/permissions/git.ts",
       handler: (input: PermissionInput) => {
         seenInputs.push(input);
-        return { decision: "request" as const };
+        return options.decision ?? { decision: "request" as const };
       },
     },
   ]);
