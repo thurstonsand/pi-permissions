@@ -233,7 +233,7 @@ MCP servers that omit `readOnlyHint` are treated as able to change things, match
 
 ### [Ask before a specific MCP tool](examples/github-release.ts)
 
-Pi names MCP tools `mcp__<server>__<tool>`, after the server key in `mcp.json`. If a server named `github` exposes `create_release`, you can match it like any other Pi tool. This works for direct tools and for calls made from `codemode` alike.
+Pi names MCP tools `mcp__<server>__<tool>`, after the server key in `mcp.json`, with `-` replaced by `_` in both names. If a server named `github` exposes `create_release`, you can match it like any other Pi tool. This works for direct tools and for calls made from `codemode` alike.
 
 ```ts
 import {
