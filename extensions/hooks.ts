@@ -63,7 +63,10 @@ export function registerPermissionHooks(
     // A nested call's result only reaches the tool that made it (e.g. a codemode
     // script), never the model, so the note rides up to the calling tool's result.
     if (event.parentToolCallId) {
-      pendingApprovalNotes.rememberForToolResult(event.parentToolCallId, ...notes);
+      pendingApprovalNotes.rememberForToolResult(
+        event.parentToolCallId,
+        ...notes.map((note) => ({ kind: "nested" as const, toolName: event.toolName, note })),
+      );
       return undefined;
     }
 
@@ -259,7 +262,11 @@ function blockToolCall(
   // A nested call's block reason only reaches the script that made it, which
   // may swallow it, so the model also hears about it on the calling tool's result.
   if (event.parentToolCallId) {
-    pendingApprovalNotes.rememberForToolResult(event.parentToolCallId, { kind: "block", reason });
+    pendingApprovalNotes.rememberForToolResult(event.parentToolCallId, {
+      kind: "nested",
+      toolName: event.toolName,
+      note: { kind: "block", reason },
+    });
   }
   return { block: true, reason };
 }

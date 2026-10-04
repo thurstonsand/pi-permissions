@@ -15,7 +15,8 @@ export type EditNote = {
 export type PendingToolResultNote =
   | ({ kind: "approval" } & ApprovalNote)
   | ({ kind: "edit" } & EditNote)
-  | { kind: "block"; reason: string };
+  | { kind: "block"; reason: string }
+  | { kind: "nested"; toolName: string; note: PendingToolResultNote };
 
 export type PermissionPromptInput = {
   hookName: string;
@@ -145,6 +146,9 @@ export function formatAgentFacingToolResultNote(note: PendingToolResultNote): st
       return formatAgentFacingEditNote(note);
     case "block":
       return note.reason;
+    case "nested":
+      return `A call to ${note.toolName} made by this tool:
+${formatAgentFacingToolResultNote(note.note)}`;
   }
 }
 

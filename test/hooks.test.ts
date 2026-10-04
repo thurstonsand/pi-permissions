@@ -106,8 +106,8 @@ describe("approval notes", () => {
 
     expect(nested).toBeUndefined();
     expect(parent.content.map((block) => block.text)).toEqual([
-      expect.stringContaining("it is fine"),
-      expect.stringContaining("it is fine"),
+      expect.stringMatching(/^A call to read made by this tool:\nApproved .*it is fine/s),
+      expect.stringMatching(/^A call to read made by this tool:\nApproved .*it is fine/s),
       "output",
     ]);
   });
@@ -122,7 +122,9 @@ describe("approval notes", () => {
 
     expect(blocked).toEqual({ block: true, reason: expect.stringContaining("not yet") });
     expect(parent.content.map((block) => block.text)).toEqual([
-      expect.stringMatching(/^Blocked by user via permission hook .*not yet/s),
+      expect.stringMatching(
+        /^A call to read made by this tool:\nBlocked by user via permission hook .*not yet/s,
+      ),
       "output",
     ]);
   });
@@ -140,7 +142,31 @@ describe("approval notes", () => {
 
     expect(blocked).toEqual({ block: true, reason: expect.stringContaining("never rm") });
     expect(parent.content.map((block) => block.text)).toEqual([
-      expect.stringMatching(/^Blocked by permission hook Git mutations.*never rm/s),
+      expect.stringMatching(
+        /^A call to read made by this tool:\nBlocked by permission hook Git mutations.*never rm/s,
+      ),
+      "output",
+    ]);
+  });
+
+  it("relays notes through every level of nesting", async () => {
+    const runtime = createRuntime({ kind: "allow", note: "it is fine" });
+
+    await runtime.toolCall({ toolCallId: "code-1/1/1", parentToolCallId: "code-1/1" });
+    await runtime.toolResult({ toolCallId: "code-1/1/1", parentToolCallId: "code-1/1" });
+    await runtime.toolResult({
+      toolCallId: "code-1/1",
+      toolName: "codemode",
+      parentToolCallId: "code-1",
+    });
+    const parent = (await runtime.toolResult({ toolCallId: "code-1" })) as {
+      content: { text: string }[];
+    };
+
+    expect(parent.content.map((block) => block.text)).toEqual([
+      expect.stringMatching(
+        /^A call to codemode made by this tool:\nA call to read made by this tool:\nApproved .*it is fine/s,
+      ),
       "output",
     ]);
   });
@@ -361,6 +387,9 @@ function createRuntime(
         ctx,
       ),
     toolResult: (event: object) =>
-      handlers.get("tool_result")?.({ content: [{ type: "text", text: "output" }], ...event }, ctx),
+      handlers.get("tool_result")?.(
+        { toolName: "read", content: [{ type: "text", text: "output" }], ...event },
+        ctx,
+      ),
   };
 }
