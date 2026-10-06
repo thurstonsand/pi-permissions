@@ -2,6 +2,14 @@
 
 # Release notes
 
+## 0.12.1
+
+Verified against Pi 1.0.4.
+
+### Changed
+
+- Developed and tested against Pi 1.0.4. The extension's code is unchanged; Pi 1.0.3 and 1.0.4 introduce no breaking changes for permission hooks, prompts, or nested codemode and MCP calls.
+
 ## 0.12.0
 
 Supports Pi 1.0, its built-in MCP, and codemode.
