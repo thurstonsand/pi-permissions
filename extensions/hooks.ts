@@ -119,7 +119,9 @@ export function registerPermissionHooks(
       ...(decision.prompt ? { prompt: decision.prompt } : {}),
     };
 
-    if (!ctx.hasUI) {
+    // The prompt is a ui.custom overlay, which only the TUI renders; RPC
+    // reports hasUI but its ui.custom resolves undefined without asking.
+    if (!ctx.hasUI || ctx.mode !== "tui") {
       return blockToolCall(event, formatAgentFacingNoUiReason(promptInput), pendingApprovalNotes);
     }
 

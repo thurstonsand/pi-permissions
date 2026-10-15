@@ -271,9 +271,25 @@ describe("pending request lifecycle", () => {
   });
 });
 
+describe("modes without the permission prompt", () => {
+  it("blocks a request in RPC mode instead of opening the prompt", async () => {
+    const runtime = createRuntime({ kind: "allow" }, { mode: "rpc" });
+
+    const result = await runtime.toolCall();
+
+    expect(result).toEqual({
+      block: true,
+      reason: "Blocked read (Git mutations): user confirmation required but no UI available.",
+    });
+    expect(showPermissionGate).not.toHaveBeenCalled();
+    expect(runtime.attentionEvents).toEqual([]);
+  });
+});
+
 function createRuntime(
   result: PermissionGateResult,
   options: {
+    mode?: "tui" | "rpc";
     overlayOpen?: boolean;
     deferPrompt?: boolean;
     tools?: { name: string; annotations?: object }[];
@@ -343,7 +359,7 @@ function createRuntime(
 
   const ctx = {
     cwd: "/repo",
-    mode: "tui",
+    mode: options.mode ?? "tui",
     hasUI: true,
     sessionManager: { getBranch: () => [] },
     ui: {
