@@ -65,9 +65,10 @@ function padRight(content: string, width: number): string {
 }
 
 function stripCursorHighlight(line: string): string {
-  // Drop the editor's inverse-video cursor (ESC[7m … ESC[0m), keeping the
-  // character it sat on. The editor emits no other reverse-video runs.
-  return line.replaceAll("\x1b[7m", "").replaceAll("\x1b[0m", "");
+  // Drop the editor's fake cursor markers, keeping the character they wrap; the
+  // TUI would otherwise resolve them to reverse video. pi-tui declares these as
+  // FAKE_CURSOR_START/END but does not export them from its entry point.
+  return line.replaceAll("\x1b_pi:fc\x07", "").replaceAll("\x1b_pi:/fc\x07", "");
 }
 
 function wrapParagraphs(text: string, width: number): string[] {
@@ -439,7 +440,7 @@ class PermissionPromptOverlay implements Focusable {
   private renderEditMode(bodyWidth: number): string[] {
     if (!this.editSession) return [];
 
-    // The pi Editor always paints its inverse-video cursor regardless of its
+    // The pi Editor always paints its fake cursor regardless of its
     // focused flag, so strip it while the note field holds focus — otherwise
     // both fields show a cursor at once.
     const commandLines = this.editSession.editor.render(bodyWidth);

@@ -48,6 +48,7 @@ type Harness = {
 };
 
 const WIDTH = 60;
+const FAKE_CURSOR_START = "\x1b_pi:fc\x07";
 
 function mount(
   editable?: { command: string },
@@ -287,15 +288,15 @@ describe("permission prompt edit mode", () => {
   it("shows one cursor and a contextual legend as focus moves between fields", async () => {
     const h = mount({ command: "git commit -m hi" });
     h.type("2");
-    // command field: editor paints its inverse cursor, shift+enter is offered
+    // command field: editor paints its fake cursor, shift+enter is offered
     const command = h.render().join("\n");
-    expect(command).toContain("\x1b[7m");
+    expect(command).toContain(FAKE_CURSOR_START);
     expect(command).toContain("shift+enter");
 
     h.type(KEY.tab);
     // note field: command editor cursor is stripped, shift+enter is hidden
     const note = h.render().join("\n");
-    expect(note).not.toContain("\x1b[7m");
+    expect(note).not.toContain(FAKE_CURSOR_START);
     expect(note).not.toContain("shift+enter");
   });
 
