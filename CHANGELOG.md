@@ -2,6 +2,15 @@
 
 # Release notes
 
+## 0.12.2
+
+Verified against Pi 1.3.0.
+
+### Fixed
+
+- Permission requests in RPC mode (`pi --mode rpc`) are now blocked with a clear reason instead of failing with a `TypeError`. The prompt only exists in the TUI, so the agent is told that confirmation was required but no UI is available.
+- The edit prompt shows a single cursor again on Pi 1.2 and later. Pi's editor changed how it paints its cursor, so the command field kept its own cursor while the note field had focus.
+
 ## 0.12.1
 
 Verified against Pi 1.0.4.
