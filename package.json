@@ -58,7 +58,7 @@
     "jiti": "^2.6.1",
     "minimatch": "^10.2.5",
     "tree-sitter-bash": "^0.25.1",
-    "web-tree-sitter": "^0.26.8"
+    "web-tree-sitter": "^0.27.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
