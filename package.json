@@ -87,7 +87,6 @@
     "access": "public"
   },
   "allowScripts": {
-    "esbuild": false,
     "protobufjs": false,
     "tree-sitter-bash": false,
     "@google/genai": false
