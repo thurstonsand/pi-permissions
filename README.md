@@ -46,6 +46,7 @@ A permission module default-exports a function. Register checks with `api.onTool
 
 ```ts
 import {
+  gitValueFlags,
   matchCommand,
   matchTool,
   request,
@@ -55,6 +56,7 @@ import {
 const gitCommit = matchCommand({
   program: "git",
   subcommands: ["commit"],
+  valueFlags: gitValueFlags,
   onMatch: () =>
     request({ guidance: "Review the commit message before approving." }),
 });

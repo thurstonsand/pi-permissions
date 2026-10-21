@@ -1,4 +1,5 @@
 import {
+  gitValueFlags,
   matchCommand,
   matchTool,
   type PermissionsAPI,
@@ -8,6 +9,7 @@ import {
 const gitCommit = matchCommand({
   program: "git",
   subcommands: ["commit"],
+  valueFlags: gitValueFlags,
   onMatch: () => request({ guidance: "Review the commit message before approving." }),
 });
 
