@@ -12,6 +12,8 @@
   "dependencyDashboard": true,
   "timezone": "America/New_York",
   "labels": ["dependencies"],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["at any time"]
@@ -28,6 +30,11 @@
     {
       "matchManagers": ["mise"],
       "groupName": "mise tools"
+    },
+    {
+      "description": "Pi always takes its latest release; the extension is verified against the Pi it runs on, so it skips the release-age gate.",
+      "matchPackageNames": ["@earendil-works/**"],
+      "minimumReleaseAge": null
     },
     {
       "description": "Pi updates raise the devDependency floors instead of only the lockfile. Scoped to devDependencies because bump would also rewrite the peer floors to each new Pi release, and those floors are the oldest Pi we support, raised deliberately.",
