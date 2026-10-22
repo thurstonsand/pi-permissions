@@ -16,7 +16,7 @@ The job of this skill is to stop pins from disappearing silently. Git can merge 
 - **`PINS.md` is the contract.** Every row is a pin that must hold after the rebase. Each pin is enforced one of three ways:
   - **Exact range**: a direct dependency whose `package.json` range is narrowed to the pinned version. Needed once `main`'s range stops admitting it.
   - **Override**: a transitive dependency with an `overrides` entry in `package.json`.
-  - **Lockfile-only**: no `package.json` entry; only the lockfile holds it. Regenerating the lockfile loses it every time, so prefer moving it to one of the other two.
+  - **Lockfile-only**: nothing in `package.json` enforces it; only the lockfile holds it. That covers a transitive dependency with no `overrides` entry and a direct dependency whose range still admits newer versions, such as `^1.61.0` holding `1.61.0`. Regenerating the lockfile loses it every time, so prefer moving it to one of the other two.
 
 ## Workflow
 
