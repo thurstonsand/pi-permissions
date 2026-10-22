@@ -4,6 +4,7 @@
     "config:recommended",
     "customManagers:biomeVersions",
     ":configMigration",
+    ":maintainLockFilesWeekly",
     ":disableRateLimiting",
     ":prImmediately",
     "abandonments:recommended",
@@ -14,10 +15,6 @@
   "labels": ["dependencies"],
   "minimumReleaseAge": "3 days",
   "internalChecksFilter": "strict",
-  "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": ["at any time"]
-  },
   "packageRules": [
     {
       "matchManagers": ["github-actions"],
@@ -30,6 +27,11 @@
     {
       "matchManagers": ["mise"],
       "groupName": "mise tools"
+    },
+    {
+      "matchManagers": ["mise"],
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "enabled": false
     },
     {
       "description": "Pi always takes its latest release; the extension is verified against the Pi it runs on, so it skips the release-age gate.",
