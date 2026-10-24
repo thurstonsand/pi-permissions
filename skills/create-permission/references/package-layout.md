@@ -59,7 +59,7 @@ A top-level `.ts` module can import:
 - `@thurstonsand/pi-permissions`
 - Node built-ins through `node:*`
 - `@earendil-works/pi-agent-core`
-- `@earendil-works/pi-ai`, `@earendil-works/pi-ai/compat`, and `@earendil-works/pi-ai/oauth`
+- `@earendil-works/pi-ai`, `@earendil-works/pi-ai/compat`, `@earendil-works/pi-ai/models`, and `@earendil-works/pi-ai/oauth`
 - `@earendil-works/pi-coding-agent`
 - `@earendil-works/pi-tui`
 - `typebox`, `typebox/compile`, and `typebox/value`, including the `@sinclair/typebox` aliases

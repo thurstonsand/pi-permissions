@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as _bundledPiAgentCore from "@earendil-works/pi-agent-core";
 import * as _bundledPiAiCompat from "@earendil-works/pi-ai/compat";
+import * as _bundledPiAiModels from "@earendil-works/pi-ai/models";
 import * as _bundledPiAiOauth from "@earendil-works/pi-ai/oauth";
 import * as _bundledPiCodingAgent from "@earendil-works/pi-coding-agent";
 import * as _bundledPiTui from "@earendil-works/pi-tui";
@@ -23,6 +24,7 @@ const PERMISSION_MODULE_VIRTUAL_MODULES: Record<string, unknown> = {
   "@earendil-works/pi-agent-core": _bundledPiAgentCore,
   "@earendil-works/pi-ai": _bundledPiAiCompat,
   "@earendil-works/pi-ai/compat": _bundledPiAiCompat,
+  "@earendil-works/pi-ai/models": _bundledPiAiModels,
   "@earendil-works/pi-ai/oauth": _bundledPiAiOauth,
   "@earendil-works/pi-coding-agent": _bundledPiCodingAgent,
   "@earendil-works/pi-tui": _bundledPiTui,
