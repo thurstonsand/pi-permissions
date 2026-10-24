@@ -8,6 +8,7 @@ import {
 import {
   getEnabledPermissionHooks,
   isPermissionHookEnabled,
+  type RuntimePermissionHook,
   setPermissionHookEnabled,
 } from "../src/enablement.js";
 import { evaluatePermissionHooks, type PermissionHookFailure } from "../src/evaluator.js";
@@ -28,7 +29,7 @@ import {
 import { restorePermissionsState } from "../src/state.js";
 import { permissionToolInputFromToolCall } from "../src/tool-input.js";
 import { waitForOverlaysToClear } from "../src/ui/overlay-gate.js";
-import { announcePendingRequest } from "../src/ui/pending-request.js";
+import { PendingRequests } from "../src/ui/pending-request.js";
 import { type PermissionGateResult, showPermissionGate } from "../src/ui/permission-prompt.js";
 import { syncPermissionsStatus } from "../src/ui/status.js";
 import { loadRuntimeHooks, notifyLoadErrors, type PermissionsRuntimeState } from "./runtime.js";
@@ -40,6 +41,8 @@ export function registerPermissionHooks(
   pendingApprovalNotes: PendingApprovalNotes,
 ): void {
   const notifiedHookFailures = new Set<string>();
+  const pendingRequests = new PendingRequests();
+  const openPrompts = new Set<{ hook: RuntimePermissionHook; retract: AbortController }>();
 
   async function restoreSession(ctx: ExtensionContext): Promise<void> {
     pendingApprovalNotes.discardOutstandingNotes();
@@ -131,13 +134,17 @@ export function registerPermissionHooks(
     // The pending window opens the moment the hook decides to ask and closes
     // when the approver answers, so the announcement and the attention ping
     // cover the wait for a clear screen as well as the prompt itself.
-    const pending = announcePendingRequest(ctx, formatHumanFacingPendingRequestMessage(hook.name));
+    const pending = pendingRequests.announce(
+      ctx,
+      formatHumanFacingPendingRequestMessage(hook.name),
+    );
     pi.events.emit("glimpseui:attention:request", {
       attentionId: event.toolCallId,
       label: hook.name,
     });
 
-    let result: Awaited<ReturnType<typeof showPermissionGate>>;
+    const openPrompt = { hook, retract: new AbortController() };
+    let result: PermissionGateResult | undefined;
     try {
       await waitForOverlaysToClear(ctx);
 
@@ -147,27 +154,35 @@ export function registerPermissionHooks(
       if (!isPermissionHookEnabled(state.enablement, hook)) return undefined;
 
       const prompt = formatHumanFacingPermissionPrompt(promptInput);
-      result = await showPermissionGate(ctx, {
-        name: prompt.name,
-        header: prompt.header,
-        toolName: promptInput.toolName,
-        detail: promptInput.toolDetail,
-        ...(promptInput.prompt?.highlight !== undefined
-          ? { highlight: promptInput.prompt.highlight }
-          : {}),
-        labels: {
-          approveLabel: prompt.approveLabel,
-          editLabel: prompt.editLabel,
-          rejectLabel: prompt.rejectLabel,
+      openPrompts.add(openPrompt);
+      result = await showPermissionGate(
+        ctx,
+        {
+          name: prompt.name,
+          header: prompt.header,
+          toolName: promptInput.toolName,
+          detail: promptInput.toolDetail,
+          ...(promptInput.prompt?.highlight !== undefined
+            ? { highlight: promptInput.prompt.highlight }
+            : {}),
+          labels: {
+            approveLabel: prompt.approveLabel,
+            editLabel: prompt.editLabel,
+            rejectLabel: prompt.rejectLabel,
+          },
+          ...(editable ? { editable } : {}),
         },
-        ...(editable ? { editable } : {}),
-      });
+        openPrompt.retract.signal,
+      );
     } finally {
+      openPrompts.delete(openPrompt);
       pi.events.emit("glimpseui:attention:resolve", {
         attentionId: event.toolCallId,
       });
       pending.end();
     }
+
+    if (!result) return undefined;
 
     const outcome = handlePromptResult(
       ctx,
@@ -181,6 +196,12 @@ export function registerPermissionHooks(
     if (result.kind === "allow" && result.forSession) {
       commitEnablement(pi, ctx, state, setPermissionHookEnabled(state.enablement, hook, false));
       ctx.ui.notify(formatHumanFacingSessionDisableNotification(hook.name), "warning");
+
+      // Concurrent requests stack their prompts, so the same hook may still be
+      // asking about other calls. Its approver just said not to.
+      for (const open of openPrompts) {
+        if (!isPermissionHookEnabled(state.enablement, open.hook)) open.retract.abort();
+      }
     }
 
     return outcome;

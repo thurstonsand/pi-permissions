@@ -259,6 +259,38 @@ describe("pending request lifecycle", () => {
     expect(runtime.mountedWidgets()).toBe(0);
   });
 
+  it("dismisses a stacked prompt once don't ask again disables its hook", async () => {
+    const runtime = createRuntime({ kind: "allow" });
+    const answers: ((result: PermissionGateResult) => void)[] = [];
+    const retractions: AbortSignal[] = [];
+    vi.mocked(showPermissionGate).mockImplementation(
+      (_ctx, _view, retract) =>
+        new Promise((resolve) => {
+          answers.push(resolve);
+          retractions.push(retract);
+          retract.addEventListener("abort", () => resolve(undefined));
+        }),
+    );
+
+    const older = runtime.toolCall({ toolCallId: "call-1" });
+    const newer = runtime.toolCall({ toolCallId: "call-2" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(answers).toHaveLength(2);
+
+    answers[1]?.({ kind: "allow", forSession: true });
+
+    await expect(newer).resolves.toBeUndefined();
+    await expect(older).resolves.toBeUndefined();
+    expect(retractions.map((signal) => signal.aborted)).toEqual([true, false]);
+    expect(runtime.appendEntry).toHaveBeenCalledTimes(1);
+    expect(runtime.workingMessages).toEqual([
+      "Requesting permission for Git mutations...",
+      "Requesting permission for Git mutations...",
+      "Requesting permission for Git mutations...",
+      undefined,
+    ]);
+  });
+
   it("prompts immediately when no overlay is open", async () => {
     const runtime = createRuntime({ kind: "allow" }, { deferPrompt: true });
     const toolCall = runtime.toolCall();

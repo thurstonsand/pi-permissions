@@ -881,15 +881,17 @@ class PermissionPromptOverlay implements Focusable {
   }
 }
 
+// Resolves undefined, without an answer, once retract aborts.
 export async function showPermissionGate(
   ctx: ExtensionContext,
   view: PermissionPromptView,
-): Promise<PermissionGateResult> {
+  retract: AbortSignal,
+): Promise<PermissionGateResult | undefined> {
   const externalEditorCommand = view.editable ? resolveExternalEditorCommand(ctx) : "";
-  return ctx.ui.custom<PermissionGateResult>(
-    (tui, theme, keybindings, done) =>
-      new PermissionPromptOverlay(tui, theme, keybindings, view, externalEditorCommand, done),
-  );
+  return ctx.ui.custom<PermissionGateResult | undefined>((tui, theme, keybindings, done) => {
+    retract.addEventListener("abort", () => done(undefined), { once: true });
+    return new PermissionPromptOverlay(tui, theme, keybindings, view, externalEditorCommand, done);
+  });
 }
 
 // Resolve the approver's external editor the same way pi does for its own

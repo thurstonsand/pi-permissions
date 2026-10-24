@@ -36,6 +36,7 @@ type Overlay = {
 type Harness = {
   overlay: Overlay;
   result(): PermissionGateResult | undefined;
+  settled(): boolean;
   type(...keys: string[]): void;
   render(): string[];
   /** Component row carrying the first rendered line that contains `needle`. */
@@ -52,10 +53,11 @@ const FAKE_CURSOR_START = "\x1b_pi:fc\x07";
 
 function mount(
   editable?: { command: string },
-  opts?: { highlight?: PermissionHighlight },
+  opts?: { highlight?: PermissionHighlight; retract?: AbortSignal },
 ): Harness {
   let overlay: Overlay | undefined;
   let result: PermissionGateResult | undefined;
+  let settled = false;
 
   const theme = {
     // Make the warning color visible so highlighted fragments are observable.
@@ -95,16 +97,21 @@ function mount(
     },
   } as unknown as ExtensionContext;
 
-  void showPermissionGate(ctx, {
-    name: "! Authorization required: Git",
-    header: "message",
-    toolName: "bash",
-    detail: editable?.command ?? "some detail",
-    labels: LABELS,
-    ...(opts?.highlight !== undefined ? { highlight: opts.highlight } : {}),
-    ...(editable ? { editable } : {}),
-  }).then((value) => {
+  void showPermissionGate(
+    ctx,
+    {
+      name: "! Authorization required: Git",
+      header: "message",
+      toolName: "bash",
+      detail: editable?.command ?? "some detail",
+      labels: LABELS,
+      ...(opts?.highlight !== undefined ? { highlight: opts.highlight } : {}),
+      ...(editable ? { editable } : {}),
+    },
+    opts?.retract ?? new AbortController().signal,
+  ).then((value) => {
     result = value;
+    settled = true;
   });
 
   if (!overlay) throw new Error("overlay not mounted");
@@ -112,6 +119,7 @@ function mount(
   return {
     overlay,
     result: () => result,
+    settled: () => settled,
     type: (...keys: string[]) => {
       for (const key of keys) overlay?.handleInput(key);
     },
@@ -797,5 +805,18 @@ describe("permission prompt don't ask again", () => {
     expect(lines[legendStart + 1]).toContain("tab add note");
     expect(lines[legendStart + 1]).toContain("shift+tab close");
     expect(lines[legendStart + 1]).toContain("esc abort");
+  });
+});
+
+describe("permission prompt retraction", () => {
+  it("closes without an answer once retracted", async () => {
+    const retract = new AbortController();
+    const h = mount(undefined, { retract: retract.signal });
+
+    retract.abort();
+    await flush();
+
+    expect(h.settled()).toBe(true);
+    expect(h.result()).toBeUndefined();
   });
 });
