@@ -2,6 +2,21 @@
 
 # Release notes
 
+## 0.12.3
+
+Verified against Pi 1.4.0.
+
+### Changed
+
+- Requires Pi 1.4.0 or later.
+- Permission modules can import `@earendil-works/pi-ai/models` without package machinery, alongside the other bundled Pi subpaths.
+
+### Fixed
+
+- Concurrent requests from nested tool calls, such as a script that runs several commands at once, now all get a prompt, stacked newest first. On older Pi one of the prompts was lost and the turn never finished.
+- "Don't ask again" now also dismisses the other prompts that hook was still showing, so their calls go ahead instead of asking about a check you just turned off.
+- The working line keeps announcing a pending request until the last stacked prompt is answered, instead of reverting to "Working" after the first.
+
 ## 0.12.2
 
 Verified against Pi 1.3.0.
