@@ -57,8 +57,7 @@ const gitCommit = matchCommand({
   program: "git",
   subcommands: ["commit"],
   valueFlags: gitValueFlags,
-  onMatch: () =>
-    request({ guidance: "Review the commit message before approving." }),
+  onMatch: () => request({ guidance: "Review the commit message before approving." }),
 });
 
 export default function permissions(api: PermissionsAPI) {
@@ -166,8 +165,7 @@ function isDestructiveRemoval(cmd: SimpleCommand): boolean {
 const destructiveRemoval = matchCommand({
   program: ["rm", "find"],
   where: isDestructiveRemoval,
-  onMatch: ({ commands }) =>
-    request({ highlight: commands.map((cmd) => cmd.span) }),
+  onMatch: ({ commands }) => request({ highlight: commands.map((cmd) => cmd.span) }),
 });
 
 export default function permissions(api: PermissionsAPI) {
@@ -188,11 +186,7 @@ export default function permissions(api: PermissionsAPI) {
 ### [Block reading `.env`](examples/block-env-read.ts)
 
 ```ts
-import {
-  block,
-  matchTool,
-  type PermissionsAPI,
-} from "@thurstonsand/pi-permissions";
+import { block, matchTool, type PermissionsAPI } from "@thurstonsand/pi-permissions";
 
 export default function permissions(api: PermissionsAPI) {
   api.onToolUse({
@@ -238,11 +232,7 @@ MCP servers that omit `readOnlyHint` are treated as able to change things, match
 Pi names MCP tools `mcp__<server>__<tool>`, after the server key in `mcp.json`, with any character other than letters, digits, and `_` replaced by `_`. If a server named `github` exposes `create_release`, you can match it like any other Pi tool. This works for direct tools and for calls made from `codemode` alike.
 
 ```ts
-import {
-  matchTool,
-  request,
-  type PermissionsAPI,
-} from "@thurstonsand/pi-permissions";
+import { matchTool, request, type PermissionsAPI } from "@thurstonsand/pi-permissions";
 
 export default function permissions(api: PermissionsAPI) {
   api.onToolUse({

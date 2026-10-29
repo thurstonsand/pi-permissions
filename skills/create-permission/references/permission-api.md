@@ -5,11 +5,7 @@
 A permission module default-exports a factory and registers one or more hooks:
 
 ```ts
-import {
-  matchTool,
-  request,
-  type PermissionsAPI,
-} from "@thurstonsand/pi-permissions";
+import { matchTool, request, type PermissionsAPI } from "@thurstonsand/pi-permissions";
 
 export default function permissions(api: PermissionsAPI) {
   api.onToolUse({
@@ -69,12 +65,12 @@ The block reason is agent-facing. State the constraint that stopped the call so 
 
 All tools expose `toolName`, the original `input`, and a rendered `detail`. Built-ins add convenience fields:
 
-| Tool | Convenience fields |
-| --- | --- |
-| `bash` | `command` |
-| `read` | `path`, `absolutePath`, `projectPath?` |
-| `edit` | `path`, `absolutePath`, `projectPath?` |
-| `write` | `path`, `absolutePath`, `projectPath?` |
+| Tool                 | Convenience fields                             |
+| -------------------- | ---------------------------------------------- |
+| `bash`               | `command`                                      |
+| `read`               | `path`, `absolutePath`, `projectPath?`         |
+| `edit`               | `path`, `absolutePath`, `projectPath?`         |
+| `write`              | `path`, `absolutePath`, `projectPath?`         |
 | `grep`, `find`, `ls` | optional `path`, `absolutePath`, `projectPath` |
 
 `projectPath` exists only when the resolved path is inside `input.cwd`; it uses forward slashes. Use `absolutePath` for filesystem identity and `projectPath` for repository-relative policy.
@@ -129,8 +125,7 @@ Patterns emphasize every occurrence. Spans are sorted, clamped, and merged. A th
 A `matchCommand()` request that names no highlight emphasizes the matched program and subcommand. Name one to override that, using parser spans when bash structure produced the verdict:
 
 ```ts
-onMatch: ({ commands }) =>
-  request({ highlight: commands.map((command) => command.span) });
+onMatch: ({ commands }) => request({ highlight: commands.map((command) => command.span) });
 ```
 
 Use `highlightSpans()` inside a callback when a pattern needs additional filtering:

@@ -101,7 +101,7 @@ The common case is a string or RegExp the handler already tested; `highlight` ac
 
 When patterns cannot express the match — the same text appears twice and only one occurrence offends, or the fragment is found by parsing rather than searching — the Author passes a callback `(detail) => HighlightSpan[]` and computes the spans directly. The callback slots in at exactly the layer the engine works in: patterns are resolved to spans internally, and the callback is that resolver, swapped out.
 
-Hand-written span literals were rejected as the primary interface — offsets written by hand are hostile to the Author and drift silently if detail formatting changes. Spans as a *callback return* do not share that flaw: they are computed at render time from the live detail string.
+Hand-written span literals were rejected as the primary interface — offsets written by hand are hostile to the Author and drift silently if detail formatting changes. Spans as a _callback return_ do not share that flaw: they are computed at render time from the live detail string.
 
 ### 3. Highlighting applies only to the tool detail in the human-facing prompt
 

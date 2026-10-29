@@ -62,7 +62,6 @@ Submitting a blank command does not run; a warning renders below the command fie
 ![Blank command warning](./images/07-blank-warning.png)
 
 > The mocks are rendered with the actual pi-tui `Editor` component and pi's dark-theme colors (`packages/coding-agent/src/modes/interactive/theme/dark.json`); minor layout drift during implementation is expected.
-
 - **Command** is a pi-tui `Editor` (multiline), prefilled with the original command, normal text color. The horizontal rules above and below it are the `Editor`'s own framing.
 - **Note to agent** is a single-line field rendered dim (`theme.fg("dim", ...)`), reusing the overlay's existing draft-editing input handling.
 - `tab` toggles focus between the two fields. `enter` from either field submits. `shift+enter` inserts a newline in the command editor. `ctrl+g` opens the focused field's content in `$EDITOR`. `ctrl+r` toggles the command buffer between the Approver's edits and the agent's original, stashing whichever is not shown; modifying the buffer while the original is shown discards the stash. The note is untouched either way. `esc` returns to select mode with both drafts retained.

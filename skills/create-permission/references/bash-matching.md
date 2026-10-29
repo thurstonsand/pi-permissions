@@ -104,8 +104,7 @@ A request that names no highlight is emphasized with the matched program and sub
 Use whole-command spans when flags, arguments, or targets complete the evidence:
 
 ```ts
-onMatch: ({ commands }) =>
-  request({ highlight: commands.map((command) => command.span) });
+onMatch: ({ commands }) => request({ highlight: commands.map((command) => command.span) });
 ```
 
 For finer evidence, `ShellToken` values are themselves spans. Filter `args` or `positionals()` and pass the selected tokens as the highlight.

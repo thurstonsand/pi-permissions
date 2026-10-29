@@ -149,7 +149,6 @@ The rendered request prompt uses this anatomy:
 Permission handlers return:
 
 ```ts
-
 type PermissionDecision =
   | { decision: "block"; reason: string }
   | { decision: "request"; prompt?: PermissionRequestPrompt };

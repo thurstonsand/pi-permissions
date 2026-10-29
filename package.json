@@ -81,7 +81,7 @@
     "typebox": "*"
   },
   "lint-staged": {
-    "*.{js,cjs,mjs,jsx,ts,tsx,json,jsonc}": "biome check --write --no-errors-on-unmatched"
+    "*.{js,cjs,mjs,jsx,ts,tsx,json,jsonc,md}": "biome check --write --no-errors-on-unmatched"
   },
   "publishConfig": {
     "access": "public"

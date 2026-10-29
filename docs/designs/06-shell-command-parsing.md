@@ -157,7 +157,7 @@ Parsed: `$( )`, backticks, `<( )`/`>( )` — the grammar yields these as real co
 
 ### 6. Failure semantics: hooks fail open individually; parse gaps are the author's signal
 
-A hook that throws (e.g. wasm cannot load) is caught by the evaluator, skipped, and evaluation continues with the remaining hooks; the failure surfaces as a session notification in the pattern of `notifyLoadErrors`. Previously an exception propagated into pi's runtime with an undefined outcome — internalizing a parser that *can* fail forced the decision.
+A hook that throws (e.g. wasm cannot load) is caught by the evaluator, skipped, and evaluation continues with the remaining hooks; the failure surfaces as a session notification in the pattern of `notifyLoadErrors`. Previously an exception propagated into pi's runtime with an undefined outcome — internalizing a parser that _can_ fail forced the decision.
 
 Malformed or exotic input does not throw: the grammar is error-tolerant and yields a tree with `ERROR` nodes. `parseShellCommand` returns every simple command that parsed cleanly plus `hasErrors: true`. Paranoia is per-rule opt-in — an author checks `hasErrors` at the foundation layer, or sets `strict: true` on `matchCommand` to force a request on any parse gap. Default is lenient to avoid taxing every rule with prompts over harmless exotic syntax.
 

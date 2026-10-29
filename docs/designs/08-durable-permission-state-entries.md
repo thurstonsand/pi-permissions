@@ -7,6 +7,7 @@ Accepted
 Builds on design 03 (per-hook permission enablement). Terminology per `CONTEXT.md`: Approver, Permission hook, Enabled, and Permission state entry.
 
 ## Decision Summary
+
 Effective permission enablement transitions become durable, branch-local transcript cards by rendering the custom entries already used for restoration. New entries replace the internal enablement record with one complete hook snapshot that serves both restoration and stable historical rendering; the tradeoff is a clean persisted-schema break that discards old permission state.
 
 
@@ -123,12 +124,12 @@ Changes to raw map entries that do not affect currently loaded hooks are not per
 
 `appendEntry()` remains mode-independent so branch restoration is consistent. Rendering and immediate feedback differ by Pi mode:
 
-| Mode | Durable entry | Transcript card | Successful transition notification |
-| --- | --- | --- | --- |
-| TUI | Appended | Rendered | Suppressed to avoid duplicate feedback |
-| RPC | Appended | Unavailable | Retained through `ctx.ui.notify()` |
-| JSON | Appended if a transition is invoked | Unavailable | None |
-| Print | Appended if a transition is invoked | Unavailable | None |
+| Mode  | Durable entry                       | Transcript card | Successful transition notification     |
+| ----- | ----------------------------------- | --------------- | -------------------------------------- |
+| TUI   | Appended                            | Rendered        | Suppressed to avoid duplicate feedback |
+| RPC   | Appended                            | Unavailable     | Retained through `ctx.ui.notify()`     |
+| JSON  | Appended if a transition is invoked | Unavailable     | None                                   |
+| Print | Appended if a transition is invoked | Unavailable     | None                                   |
 
 Transient warnings and errors keep their existing notification behavior. Registering the renderer is harmless outside TUI mode; Pi simply does not use it there.
 
