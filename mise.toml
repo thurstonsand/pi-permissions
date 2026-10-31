@@ -7,20 +7,23 @@ experimental = true
 enter = "mise bootstrap --yes --quiet"
 
 [tools]
+hk = "2.8.1"
 node = "24"
 
 [env]
+HK_MISE = "1"
 _.path = ["{{config_root}}/node_modules/.bin"]
 
 [tasks.bootstrap]
-description = "Install project dependencies"
+description = "Install project dependencies and git hooks"
 run = [
     "npm install --silent --no-fund --no-audit",
     # pi must always resolve to the global install, never this repo's copy
     "rm -f node_modules/.bin/pi",
+    "hk install --mise --quiet",
 ]
-sources = ["package.json", "package-lock.json"]
-outputs = ["node_modules/.package-lock.json"]
+sources = ["mise.toml", "hk.pkl", "package.json", "package-lock.json"]
+outputs = { auto = true }
 quiet = true
 
 [tasks.lint]

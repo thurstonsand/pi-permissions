@@ -2,7 +2,7 @@
 
 ## Environment
 
-This repo uses mise for tool versions, task execution, and local environment setup. Entering the directory with mise activated runs the bootstrap flow so Node and npm dependencies are ready; no further action should be needed to begin development.
+This repo uses mise for tool versions, task execution, and local environment setup. Entering the directory with mise activated runs the bootstrap flow so Node, npm dependencies, and the hk pre-commit hook are ready; no further action should be needed to begin development.
 
 ## Commands
 
