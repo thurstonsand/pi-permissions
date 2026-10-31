@@ -16,7 +16,7 @@
     "pi-package"
   ],
   "engines": {
-    "node": ">=20 <26"
+    "node": ">=20 <27"
   },
   "files": [
     "examples",
@@ -56,7 +56,7 @@
   },
   "dependencies": {
     "jiti": "^2.6.1",
-    "minimatch": "^10.2.5",
+    "minimatch": "^11.0.0",
     "tree-sitter-bash": "^0.25.1",
     "web-tree-sitter": "^0.27.0"
   },
