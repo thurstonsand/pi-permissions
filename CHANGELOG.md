@@ -2,7 +2,9 @@
 
 # Release notes
 
-## 0.12.4
+## [Unreleased]
+
+## [0.12.4] - 2026-11-02
 
 Verified against Pi 1.5.0.
 
@@ -20,7 +22,7 @@ Verified against Pi 1.5.0.
 - PageUp and PageDown in `/permissions` follow your `tui.select.pageUp` and `tui.select.pageDown` keybindings.
 - Updated `minimatch` to 11.0.3, which fixes GHSA-g3hv-75wg-m249. Package filter patterns never reached the affected code path, but installs no longer carry the flagged version.
 
-## 0.12.3
+## [0.12.3] - 2026-10-23
 
 Verified against Pi 1.4.0.
 
@@ -35,7 +37,7 @@ Verified against Pi 1.4.0.
 - "Don't ask again" now also dismisses the other prompts that hook was still showing, so their calls go ahead instead of asking about a check you just turned off.
 - The working line keeps announcing a pending request until the last stacked prompt is answered, instead of reverting to "Working" after the first.
 
-## 0.12.2
+## [0.12.2] - 2026-10-16
 
 Verified against Pi 1.3.0.
 
@@ -44,7 +46,7 @@ Verified against Pi 1.3.0.
 - Permission requests in RPC mode (`pi --mode rpc`) are now blocked with a clear reason instead of failing with a `TypeError`. The prompt only exists in the TUI, so the agent is told that confirmation was required but no UI is available.
 - The edit prompt shows a single cursor again on Pi 1.2 and later. Pi's editor changed how it paints its cursor, so the command field kept its own cursor while the note field had focus.
 
-## 0.12.1
+## [0.12.1] - 2026-10-06
 
 Verified against Pi 1.0.4.
 
@@ -52,7 +54,7 @@ Verified against Pi 1.0.4.
 
 - Developed and tested against Pi 1.0.4. The extension's code is unchanged; Pi 1.0.3 and 1.0.4 introduce no breaking changes for permission hooks, prompts, or nested codemode and MCP calls.
 
-## 0.12.0
+## [0.12.0] - 2026-10-04
 
 Supports Pi 1.0, its built-in MCP, and codemode.
 
@@ -69,7 +71,7 @@ Supports Pi 1.0, its built-in MCP, and codemode.
 
 - Approval notes no longer strip a tool's structured result. A noted `bash` call inside a script now still returns bash's structured output.
 
-## 0.11.0
+## [0.11.0] - 2026-08-22
 
 Prompts now wait their turn.
 
@@ -81,7 +83,7 @@ Prompts now wait their turn.
 
 - A bug where a prompt and a different overlay (such as `/permissions`) popping at the same time presents a confusing UX. Now, the prompt just waits for other overlays to close before popping.
 
-## 0.10.1
+## [0.10.1] - 2026-08-12
 
 Keeps long tool calls reviewable.
 
@@ -89,7 +91,7 @@ Keeps long tool calls reviewable.
 
 - The tool detail now renders in its own box, labeled with the tool name, and windows its content when the command is taller than the terminal. `f` and `b` page through the window, and a tag on the box's bottom border counts the lines off-screen in each direction. Previously an oversized command pushed the choices off the viewport and the approver had to decide blind.
 
-## 0.10.0
+## [0.10.0] - 2026-08-04
 
 Adds a don't-ask-again prompt outcome.
 
@@ -101,7 +103,7 @@ Adds a don't-ask-again prompt outcome.
 
 - Mirror-environment dependency pins now live only on the `downgrade` branch; the published package no longer carries `overrides`.
 
-## 0.9.0
+## [0.9.0] - 2026-07-17
 
 Adds guided permission authoring.
 
@@ -109,7 +111,7 @@ Adds guided permission authoring.
 
 - Added the user-invoked `/skill:create-permission` skill for turning plain-language tool-call policies into user-, project-, or package-level permission modules and testing them through Pi.
 
-## 0.8.0
+## [0.8.0] - 2026-07-13
 
 Adds editable bash approval prompts.
 
@@ -128,25 +130,25 @@ Adds editable bash approval prompts.
 
 - Raised the minimum supported `@earendil-works/pi-*` versions to `0.80.4`.
 
-## 0.7.3
+## [0.7.3] - 2026-07-08
 
 ### Fixed
 
 - Multi-line highlight spans now keep their emphasis color on every wrapped line instead of only the first.
 
-## 0.7.2
+## [0.7.2] - 2026-07-08
 
 ### Changed
 
 - Pinned `node-addon-api` to `8.8.0`.
 
-## 0.7.1
+## [0.7.1] - 2026-07-08
 
 ### Changed
 
 - Pinned `web-tree-sitter` to `0.26.8`.
 
-## 0.7.0
+## [0.7.0] - 2026-07-08
 
 Adds predicate-based command matching for bash permission rules.
 
@@ -154,7 +156,7 @@ Adds predicate-based command matching for bash permission rules.
 
 - Added `where` to `matchCommand()`'s `CommandSpec` — an arbitrary `(command) => boolean` predicate that narrows matches alongside `subcommands`.
 
-## 0.6.0
+## [0.6.0] - 2026-07-08
 
 Adds structural shell command parsing for bash permission rules.
 
@@ -168,7 +170,7 @@ Adds structural shell command parsing for bash permission rules.
 - Permission hook evaluation now skips a throwing hook, continues evaluating later hooks, and reports the failure as a warning notification.
 - Added `tree-sitter-bash` and `web-tree-sitter` as dependencies for shell command parsing.
 
-## 0.5.0
+## [0.5.0] - 2026-07-07
 
 Simplifies permission hook authoring and adds request prompt highlights.
 
@@ -185,7 +187,7 @@ Simplifies permission hook authoring and adds request prompt highlights.
 
 - Updated README examples to use handler-based filtering and highlight offending command fragments.
 
-## 0.4.0
+## [0.4.0] - 2026-07-07
 
 Tracks permission enablement per hook instead of a single global switch.
 
@@ -200,7 +202,7 @@ Tracks permission enablement per hook instead of a single global switch.
 - `/permissions enable`, `/permissions disable`, and the `Alt+P` shortcut now apply to all currently loaded hooks, and the footer shows the active/loaded count (for example `permissions:3/5`).
 - Agent-facing approval, block, and rejection messages now name the permission hook consistently.
 
-## 0.3.0
+## [0.3.0] - 2026-06-29
 
 Adds package-level permission hooks.
 
@@ -214,7 +216,7 @@ Adds package-level permission hooks.
 
 - Added `minimatch` as a runtime dependency for package permission filter matching.
 
-## 0.2.0
+## [0.2.0] - 2026-06-28
 
 Simplifies the permission decision model and adds small authoring helpers.
 
@@ -232,7 +234,7 @@ Simplifies the permission decision model and adds small authoring helpers.
 - Removed the explicit `pass` decision. Permission hooks now return `undefined` when they do not make a terminal decision.
 - Custom tool inputs now expose record-shaped input data.
 
-## 0.1.4
+## [0.1.4] - 2026-06-28
 
 Initial release of `@thurstonsand/pi-permissions`.
 

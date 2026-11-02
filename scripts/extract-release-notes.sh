@@ -20,11 +20,10 @@ fi
 
 awk -v version="${version}" '
   BEGIN {
-    plain_heading = "## " version
-    tagged_heading = "## v" version
+    heading = "## [" version "] - "
   }
 
-  $0 == plain_heading || $0 == tagged_heading {
+  index($0, heading) == 1 {
     capture = 1
     found = 1
     print

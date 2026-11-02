@@ -38,6 +38,10 @@ depends = ["lint:*"]
 description = "Lint TypeScript, JSON, and Markdown"
 run = "biome check ."
 
+[tasks."lint:changelog"]
+description = "Check CHANGELOG.md headings and that the top release is package.json's version"
+run = "node scripts/check-changelog.mjs"
+
 [tasks."lint:actions"]
 description = "Lint GitHub Actions workflows"
 run = "hk check --all --step jactionlint"
