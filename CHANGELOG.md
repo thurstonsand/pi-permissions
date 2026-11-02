@@ -2,6 +2,24 @@
 
 # Release notes
 
+## 0.12.4
+
+Verified against Pi 1.5.0.
+
+### Added
+
+- While a permission request waits for an answer, terminals that support program status (OSC 7501), such as Rex and iTerm2, show Pi as waiting on a permission instead of working.
+
+### Changed
+
+- Requires Pi 1.5.0 or later. Older Pi trusts a project whose `.pi` holds only permission modules even after you save "Do not trust" for it or a parent directory.
+- Project permissions load only once you trust the project, through Pi's trust prompt or by saving "Trust" with `/trust`. Pi trusts a project on its own when its `.pi` holds nothing Pi gates, such as only `.pi/permissions`, so a freshly cloned repository's permission modules ran without anyone agreeing to it. They now stay unloaded, with a notice pointing to `/trust`.
+
+### Fixed
+
+- PageUp and PageDown in `/permissions` follow your `tui.select.pageUp` and `tui.select.pageDown` keybindings.
+- Updated `minimatch` to 11.0.3, which fixes GHSA-g3hv-75wg-m249. Package filter patterns never reached the affected code path, but installs no longer carry the flagged version.
+
 ## 0.12.3
 
 Verified against Pi 1.4.0.
