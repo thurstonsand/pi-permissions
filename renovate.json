@@ -78,9 +78,8 @@
       "allowedVersions": "<23"
     },
     {
-      "description": "Renovate's own tasks run the Node that Renovate supports, ^24.11.0, while the rest of the toolchain moves to newer LTS releases.",
-      "matchManagers": ["mise"],
-      "matchDepTypes": ["task-renovate-tools", "task-lint:renovate-tools"],
+      "description": "Renovate supports only Node 24 (its engines say ^24.11), so the toolset its own tasks run in stays there while the repo moves on.",
+      "matchFileNames": ["mise.renovate.toml"],
       "matchPackageNames": ["node"],
       "allowedVersions": "<25"
     }
