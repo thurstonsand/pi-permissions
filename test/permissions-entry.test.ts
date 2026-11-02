@@ -63,7 +63,7 @@ function render(data: unknown, expanded: boolean): string {
 function createComponent(data: unknown, expanded: boolean) {
   return renderPermissionsEntry(
     { type: "custom", customType: "permissions", data } as never,
-    { expanded },
+    { expanded, keyText: () => "", keyHint: () => "" },
     createTheme(),
   );
 }
