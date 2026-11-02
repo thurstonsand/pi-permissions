@@ -24,7 +24,7 @@ head="$(git rev-parse HEAD)"
 ! git rev-parse --quiet --verify "refs/tags/${tag}" >/dev/null || fail "${tag} already exists"
 
 ci="$(gh run list --workflow ci.yml --commit "${head}" --limit 1 --json status,conclusion \
-  --jq '.[0] | "\(.status)/\(.conclusion)"')"
+  --jq '.[0] // empty | "\(.status)/\(.conclusion)"')"
 [[ "${ci}" == "completed/success" ]] || fail "CI on ${head} is not green (${ci:-no run})"
 
 current="$(node -p 'require("./package.json").version')"
