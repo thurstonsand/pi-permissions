@@ -888,10 +888,20 @@ export async function showPermissionGate(
   retract: AbortSignal,
 ): Promise<PermissionGateResult | undefined> {
   const externalEditorCommand = view.editable ? resolveExternalEditorCommand(ctx) : "";
-  return ctx.ui.custom<PermissionGateResult | undefined>((tui, theme, keybindings, done) => {
-    retract.addEventListener("abort", () => done(undefined), { once: true });
-    return new PermissionPromptOverlay(tui, theme, keybindings, view, externalEditorCommand, done);
-  });
+  return ctx.ui.custom<PermissionGateResult | undefined>(
+    (tui, theme, keybindings, done) => {
+      retract.addEventListener("abort", () => done(undefined), { once: true });
+      return new PermissionPromptOverlay(
+        tui,
+        theme,
+        keybindings,
+        view,
+        externalEditorCommand,
+        done,
+      );
+    },
+    { blocked: { kind: "permission", message: view.name } },
+  );
 }
 
 // Resolve the approver's external editor the same way pi does for its own
