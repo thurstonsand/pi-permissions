@@ -73,7 +73,7 @@
       "enabled": false
     },
     {
-      "description": "@types/node describes the oldest Node the code must run on rather than the newest DefinitelyTyped release or the Node mise runs, so tsc rejects APIs that are not there. It follows the engines floor's major, but no lower than 22: vitest 5 declares @types/node ^22 || >=24 as a peer, and npm cannot resolve the lockfile below that.",
+      "description": "@types/node describes the oldest Node the code must run on rather than the newest DefinitelyTyped release or the Node mise runs, so tsc rejects APIs that are not there. It follows the engines floor's major.",
       "matchPackageNames": ["@types/node"],
       "allowedVersions": "<23"
     },
