@@ -12,7 +12,7 @@ hk = "2.10.0"
 # does not know mise's `jactionlint` shorthand, so the backend is spelled out.
 "aqua:jdx/jactionlint" = "2.4.0"
 shellcheck = "0.11.0"
-node = "24"
+node = "26"
 
 [env]
 HK_MISE = "1"
@@ -65,7 +65,7 @@ depends = ["lint", "typecheck", "test"]
 [tasks.renovate]
 description = "Run Renovate"
 run = "PATH=\"{{ tools.node.path }}/bin:$PATH\" renovate"
-tools.node = "24"
+tools.node = "26"
 tools."npm:renovate" = { version = "44.198.2", allow_builds = [
   "re2",
 ], trust_policy_excludes = [
@@ -75,7 +75,7 @@ tools."npm:renovate" = { version = "44.198.2", allow_builds = [
 [tasks."lint:renovate"]
 description = "Validate Renovate configuration"
 run = "PATH=\"{{ tools.node.path }}/bin:$PATH\" renovate-config-validator renovate.json"
-tools.node = "24"
+tools.node = "26"
 tools."npm:renovate" = { version = "44.198.2", allow_builds = [
   "re2",
 ], trust_policy_excludes = [
