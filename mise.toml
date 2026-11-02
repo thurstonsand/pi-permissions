@@ -42,6 +42,16 @@ run = "biome check ."
 description = "Check CHANGELOG.md headings and that the top release is package.json's version"
 run = "node scripts/check-changelog.mjs"
 
+# `npm ci` installs whatever the lockfile says without re-resolving it, so a lockfile that `npm install`
+# can no longer resolve (ERESOLVE) still passes CI. Re-resolving here downloads only the metadata of
+# specs that changed. It must run on mise's npm: another npm version rewrites the lockfile.
+[tasks."lint:lockfile"]
+description = "Check that package-lock.json still resolves from package.json, unchanged"
+run = [
+    "npm install --package-lock-only --ignore-scripts --no-audit --no-fund",
+    "git diff --exit-code package-lock.json",
+]
+
 [tasks."lint:actions"]
 description = "Lint GitHub Actions workflows"
 run = "hk check --all --step jactionlint"
