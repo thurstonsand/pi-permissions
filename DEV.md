@@ -12,9 +12,10 @@ mise run format
 mise run typecheck
 mise run test
 mise run check
+mise run release <x.y.z>
 ```
 
-`mise run check` is the full verification gate.
+`mise run check` is the full verification gate. `mise run release` dates the `## [Unreleased]` changelog entries as `x.y.z`, writes the version into `package.json`, commits, tags, and pushes; see [docs/release.md](docs/release.md).
 
 ## Smoke test
 

@@ -9,10 +9,10 @@ Use this skill when preparing and publishing a new release for `pi-permissions`.
 
 ## Release model
 
-- Release from `main`.
-- npm publishing is tag-driven through `.github/workflows/release.yml`.
-- Use `CHANGELOG.md` for human release notes.
-- Use the exact same release-note text from `CHANGELOG.md` for the annotated git tag body.
+- Release from `main` with `mise run release X.Y.Z`; `docs/release.md` describes what it checks and does.
+- npm publishing is tag-driven through `.github/workflows/release.yml`, which refuses a tag that disagrees with `package.json` or the newest `CHANGELOG.md` section.
+- `CHANGELOG.md` holds the human release notes: `## [Unreleased]`, then `## [x.y.z] - YYYY-MM-DD` sections, newest first. Pi shows them to users after an update.
+- The annotated tag body is the release's `CHANGELOG.md` section, which the task extracts.
 - Stable releases are `vX.Y.Z` tags.
 - Stable package tags are immutable. Never force-push a stable release tag.
 - The GitHub Action uses npm Trusted Publishing through OIDC.
@@ -31,12 +31,12 @@ Use this skill when preparing and publishing a new release for `pi-permissions`.
 
 Ask the user to confirm the target version unless they already specified it.
 
-## 2. Prepare release notes
+## 2. Review the release notes
 
-Update `CHANGELOG.md` with a new top entry:
+Review the entries under `## [Unreleased]` in `CHANGELOG.md` against the changes since the latest tag, and edit them until they describe what ships:
 
 ```md
-## X.Y.Z
+## [Unreleased]
 
 Short release summary.
 
@@ -53,7 +53,7 @@ Short release summary.
 - User-facing fix.
 ```
 
-Omit empty sections. Do not list every internal refactor. If the user edits the notes, preserve their wording.
+Omit empty sections. Do not list every internal refactor. If the user edits the notes, preserve their wording. Leave the heading as `## [Unreleased]`; the release task dates it.
 
 If release mechanics change, update `docs/release.md`.
 
@@ -68,55 +68,43 @@ npm pack --dry-run
 
 Do not proceed on failures. Fix them or report the blocker.
 
-## 4. Commit release prep
+## 4. Push the notes
 
-Stage only release-relevant files and commit.
+Commit the reviewed notes, push `main`, and wait for its CI to pass. If hooks modify staged files, the commit will fail; resolve the hook, then recommit.
 
-If hooks modify staged files, the commit will fail, ensure the hook is resolved then recommit.
-
-## 5. Push main
-
-Push the release prep commit to `main`
-
-## 6. Create and push the stable tag
-
-Use the final `CHANGELOG.md` entry for the tag notes:
+## 5. Run the release task
 
 ```sh
-VERSION=X.Y.Z
-scripts/extract-release-notes.sh "v${VERSION}" > "/tmp/pi-permissions-v${VERSION}-notes.md"
-cat "/tmp/pi-permissions-v${VERSION}-notes.md"
-git tag -a "v${VERSION}" --cleanup=verbatim -F "/tmp/pi-permissions-v${VERSION}-notes.md"
-git push origin "v${VERSION}"
+mise run release X.Y.Z
 ```
 
-Do not force-push a stable tag. If a tag already exists, stop and inspect; do not overwrite it.
+It refuses when `main` is dirty, behind or ahead of `origin`, without green CI, has nothing under `## [Unreleased]`, or `X.Y.Z` is not newer than `package.json`'s version. Fix the cause it names rather than working around it. Otherwise it commits `chore(release): X.Y.Z`, tags `vX.Y.Z`, and pushes both. Do not create or force-push the tag by hand.
 
-## 7. Watch GitHub Actions publishing
+## 6. Watch GitHub Actions publishing
 
 The tag should trigger the Release workflow.
 
 - Use the `gh` tool to find the release (`gh run list --workflow Release`)
 - Watch the release action to completion
-- The workflow should run CI, set the package version from the tag, and publish to npm with the `latest` dist-tag.
+- The workflow should check that the versions agree, run CI, and publish to npm with the `latest` dist-tag.
 - If there is an error, inform the user what went wrong, including a proposed fix when feasible.
 
-## 8. Final verification
+## 7. Final verification
 
 Confirm npm and git remote state:
 
 ```sh
 VERSION=X.Y.Z
-npm view pi-permissions version dist-tags --json
+npm view @thurstonsand/pi-permissions version dist-tags --json
 git ls-remote --tags origin "v${VERSION}"
 git status --short
 ```
 
-## 9. Rebase the `downgrade` branch
+## 8. Rebase the `downgrade` branch
 
 The `downgrade` install resets to the branch tip, so it stays on the previous version until the branch carries the release. Load the `downgrade-rebase` skill and follow it with `v${VERSION}` as the target.
 
-## 10. Final report
+## 9. Final report
 
 Final report should include:
 

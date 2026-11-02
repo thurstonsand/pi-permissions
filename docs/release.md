@@ -2,21 +2,17 @@
 
 `@thurstonsand/pi-permissions` publishes to npm from GitHub Actions when a stable `v*` tag is pushed.
 
+## Changelog
+
+`CHANGELOG.md` opens with `## [Unreleased]`, followed by `## [x.y.z] - YYYY-MM-DD` sections, newest first. Pi shows the sections newer than the version a user last saw after they update, so `package.json` on `main` always carries the version of the newest section. `mise run lint:changelog`, part of `mise run check`, fails when a heading does not match, versions do not strictly descend, or the newest section is not `package.json`'s version.
+
 ## Release flow
 
-1. Prepare `CHANGELOG.md` with a new `## X.Y.Z` entry.
-2. Verify locally with `mise run check` and `npm pack --dry-run`.
-3. Commit the release prep.
-4. Create an annotated `vX.Y.Z` tag using the matching `CHANGELOG.md` entry as the tag body.
-5. Push `main` and the tag.
-6. The `Release` workflow runs CI, sets the package version from the tag, packs the package, and publishes it to npm with the `latest` dist-tag.
+1. Add entries under `## [Unreleased]` as changes land, and review them before releasing.
+2. Push `main` and wait for CI to pass.
+3. Run `mise run release X.Y.Z`. It refuses unless you are on a clean `main` that matches `origin/main` with green CI, `## [Unreleased]` has entries, and `X.Y.Z` is newer than `package.json`'s version. It then moves the entries under `## [X.Y.Z] - <today>`, writes `X.Y.Z` into `package.json` and `package-lock.json`, commits `chore(release): X.Y.Z`, tags `vX.Y.Z` with that section as the body, and pushes `main` and the tag.
+4. The `Release` workflow checks that the tag, `package.json`, and the newest changelog section agree, runs CI, packs the package, and publishes it to npm with the `latest` dist-tag and provenance.
 
 ## Release note extraction
 
-Use the helper script to extract the exact release entry for the git tag body:
-
-```sh
-VERSION=X.Y.Z
-scripts/extract-release-notes.sh "v${VERSION}" > "/tmp/pi-permissions-v${VERSION}-notes.md"
-git tag -a "v${VERSION}" --cleanup=verbatim -F "/tmp/pi-permissions-v${VERSION}-notes.md"
-```
+`scripts/extract-release-notes.sh vX.Y.Z` prints the `## [X.Y.Z]` section that the release task uses as the tag body.

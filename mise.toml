@@ -62,6 +62,11 @@ run = "vitest run"
 description = "Run full verification"
 depends = ["lint", "typecheck", "test"]
 
+[tasks.release]
+description = "Release a version: date its changelog section, commit, tag, and push"
+usage = 'arg "<version>" help="The version to release, as x.y.z"'
+run = 'scripts/release.sh "${usage_version}"'
+
 # Renovate's bin shim ends in `exec node`, and mise builds a task's PATH from the shell's
 # pre-activation ordering, which on a Homebrew machine starts at /opt/homebrew/bin -- ahead of the
 # node this task declares. re2 is then compiled by mise's node and loaded by Homebrew's, which
