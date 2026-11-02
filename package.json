@@ -1,6 +1,6 @@
 {
   "name": "@thurstonsand/pi-permissions",
-  "version": "0.12.4",
+  "version": "0.12.5",
   "type": "module",
   "description": "Pi extension package for user, project, and package-level tool permission hooks",
   "license": "MIT",

@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.12.5] - 2026-11-02
+
 ### Changed
 
 - Requires Node 22.19.0 or later, the same as Pi, with no upper bound. `engines` used to admit Node 20, which Pi itself refuses to run on, and to stop at Node 25, so installing on Node 26 warned about an unsupported engine.
