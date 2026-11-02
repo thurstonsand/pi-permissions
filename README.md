@@ -27,10 +27,10 @@ pi -e ./extensions/index.ts
 | Scope   | Location                                           | Loads when                                    |
 | ------- | -------------------------------------------------- | --------------------------------------------- |
 | User    | `~/.pi/agent/permissions/*.ts`                     | Every session                                 |
-| Project | `.pi/permissions/*.ts`                             | The project is trusted                        |
+| Project | `.pi/permissions/*.ts`                             | You trusted the project                       |
 | Package | `pi.permissions` or `permissions/` in a Pi package | The package is installed and not filtered out |
 
-Permission modules are TypeScript modules, using the same basic trust model as Pi extensions. Project permissions only load after Pi trusts the project.
+Permission modules are TypeScript modules, using the same basic trust model as Pi extensions. Project permissions only load once you trust the project, through Pi's trust prompt or by saving "Trust" with `/trust`. When Pi trusts a project on its own because its `.pi` holds nothing Pi gates, such as only `.pi/permissions`, those permissions stay unloaded and a notice points to `/trust`.
 
 Hooks run in this order:
 

@@ -32,7 +32,7 @@ import { waitForOverlaysToClear } from "../src/ui/overlay-gate.js";
 import { PendingRequests } from "../src/ui/pending-request.js";
 import { type PermissionGateResult, showPermissionGate } from "../src/ui/permission-prompt.js";
 import { syncPermissionsStatus } from "../src/ui/status.js";
-import { loadRuntimeHooks, notifyLoadErrors, type PermissionsRuntimeState } from "./runtime.js";
+import { loadRuntimeHooks, notifyLoadProblems, type PermissionsRuntimeState } from "./runtime.js";
 import { commitEnablement } from "./shared/toggle.js";
 
 export function registerPermissionHooks(
@@ -51,7 +51,7 @@ export function registerPermissionHooks(
     state.hooks = loaded.hooks;
     state.enablement = restorePermissionsState(ctx);
     syncPermissionsStatus(ctx, state.hooks, state.enablement);
-    notifyLoadErrors(ctx, loaded.errors);
+    notifyLoadProblems(ctx, loaded);
   }
 
   pi.on("session_start", async (_event, ctx) => restoreSession(ctx));

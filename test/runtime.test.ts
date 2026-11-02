@@ -1,7 +1,10 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { registerPermissionHooks } from "../extensions/hooks.js";
-import { getUserPermissionsDir } from "../extensions/runtime.js";
+import { getUserPermissionsDir, loadRuntimeHooks } from "../extensions/runtime.js";
 import {
   assignPermissionHookIds,
   getEnabledPermissionHooks,
@@ -12,9 +15,13 @@ import { PendingApprovalNotes } from "../src/pending-approvals.js";
 import { restorePermissionsState } from "../src/state.js";
 
 const originalUserDir = process.env.PI_PERMISSIONS_USER_DIR;
+const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
+const tempDirs: string[] = [];
 
 afterEach(() => {
   restoreEnv("PI_PERMISSIONS_USER_DIR", originalUserDir);
+  restoreEnv("PI_CODING_AGENT_DIR", originalAgentDir);
+  for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
 describe("permission directory overrides", () => {
@@ -22,6 +29,38 @@ describe("permission directory overrides", () => {
     process.env.PI_PERMISSIONS_USER_DIR = "/tmp/user-permissions";
 
     expect(getUserPermissionsDir()).toBe("/tmp/user-permissions");
+  });
+});
+
+describe("project permission trust", () => {
+  it("skips a project Pi trusted on its own and reports it, until /trust saves a yes", async () => {
+    const { cwd, agentDir } = createProject();
+
+    const undecided = await loadRuntimeHooks(createTrustContext(cwd, true));
+    expect(undecided.hooks).toEqual([]);
+    expect(undecided.skippedUntrustedProject).toBe(true);
+
+    writeFileSync(join(agentDir, "trust.json"), JSON.stringify({ [cwd]: true }));
+    const trusted = await loadRuntimeHooks(createTrustContext(cwd, true));
+    expect(trusted.hooks.map((hook) => hook.name)).toEqual(["project check"]);
+    expect(trusted.skippedUntrustedProject).toBe(false);
+  });
+
+  it("loads a project Pi gated and trusted itself", async () => {
+    const { cwd } = createProject();
+    writeFileSync(join(cwd, ".pi", "settings.json"), "{}");
+
+    const loaded = await loadRuntimeHooks(createTrustContext(cwd, true));
+    expect(loaded.hooks.map((hook) => hook.name)).toEqual(["project check"]);
+  });
+
+  it("skips a distrusted project without reporting it", async () => {
+    const { cwd, agentDir } = createProject();
+    writeFileSync(join(agentDir, "trust.json"), JSON.stringify({ [cwd]: false }));
+
+    const loaded = await loadRuntimeHooks(createTrustContext(cwd, false));
+    expect(loaded.hooks).toEqual([]);
+    expect(loaded.skippedUntrustedProject).toBe(false);
   });
 });
 
@@ -130,6 +169,27 @@ describe("permission state restore", () => {
     expect(getEnabledPermissionHooks(loaded, restored)).toEqual([added]);
   });
 });
+
+function createProject(): { cwd: string; agentDir: string } {
+  const root = mkdtempSync(join(tmpdir(), "pi-permissions-trust-"));
+  tempDirs.push(root);
+  const cwd = join(root, "project");
+  const agentDir = join(root, "agent");
+  mkdirSync(join(cwd, ".pi", "permissions"), { recursive: true });
+  mkdirSync(join(root, "user"));
+  mkdirSync(agentDir);
+  writeFileSync(
+    join(cwd, ".pi", "permissions", "check.ts"),
+    `export default (api) => api.onToolUse({ name: "project check", description: "", handler: () => undefined });`,
+  );
+  process.env.PI_PERMISSIONS_USER_DIR = join(root, "user");
+  process.env.PI_CODING_AGENT_DIR = agentDir;
+  return { cwd, agentDir };
+}
+
+function createTrustContext(cwd: string, projectTrusted: boolean) {
+  return { cwd, isProjectTrusted: () => projectTrusted } as never;
+}
 
 function createHook(name: string, modulePath: string) {
   return {

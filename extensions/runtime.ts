@@ -1,10 +1,13 @@
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
   CONFIG_DIR_NAME,
   DefaultPackageManager,
   type ExtensionContext,
   getAgentDir,
+  hasTrustRequiringProjectResources,
   type PackageSource,
+  ProjectTrustStore,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import type { RegisteredPermissionHook } from "../src/api.js";
@@ -13,7 +16,11 @@ import {
   type PermissionEnablement,
   type RuntimePermissionHook,
 } from "../src/enablement.js";
-import { loadPermissionHooksFromDir, type PermissionLoadError } from "../src/loader.js";
+import {
+  discoverPermissionModules,
+  loadPermissionHooksFromDir,
+  type PermissionLoadError,
+} from "../src/loader.js";
 import {
   loadPermissionHooksFromPackages,
   type PackagePermissionSource,
@@ -27,23 +34,36 @@ export interface PermissionsRuntimeState {
 export interface LoadedPermissionsRuntime {
   hooks: RuntimePermissionHook[];
   errors: PermissionLoadError[];
+  skippedUntrustedProject: boolean;
 }
 
 export async function loadRuntimeHooks(ctx: ExtensionContext): Promise<LoadedPermissionsRuntime> {
+  const projectDir = join(ctx.cwd, CONFIG_DIR_NAME, "permissions");
+  const trustUndecided = ctx.isProjectTrusted() && !isProjectTrustDecided(ctx.cwd);
+  const projectLoads = ctx.isProjectTrusted() && !trustUndecided;
   const [projectHooks, userHooks, packageHooks] = await Promise.all([
-    loadProjectPermissionHooks(ctx),
+    projectLoads ? loadPermissionHooksFromDir(projectDir, "project") : { hooks: [], errors: [] },
     loadUserPermissionHooks(),
     loadPackagePermissionHooks(ctx),
   ]);
 
-  return combineLoadedPermissionHooks([projectHooks, userHooks, packageHooks]);
+  return {
+    ...combineLoadedPermissionHooks([projectHooks, userHooks, packageHooks]),
+    skippedUntrustedProject:
+      trustUndecided &&
+      existsSync(projectDir) &&
+      discoverPermissionModules(projectDir, "project").length > 0,
+  };
 }
 
-async function loadProjectPermissionHooks(
-  ctx: ExtensionContext,
-): Promise<{ hooks: RegisteredPermissionHook[]; errors: PermissionLoadError[] }> {
-  if (!ctx.isProjectTrusted()) return { hooks: [], errors: [] };
-  return loadPermissionHooksFromDir(join(ctx.cwd, CONFIG_DIR_NAME, "permissions"), "project");
+// Pi trusts a project on its own when its .pi holds nothing Pi gates, and
+// permissions/ is not on that list, so isProjectTrusted() alone would run a
+// freshly cloned repo's permission modules without anyone agreeing to it.
+// Require that Pi gated the project itself, or that /trust saved a yes.
+function isProjectTrustDecided(cwd: string): boolean {
+  return (
+    hasTrustRequiringProjectResources(cwd) || new ProjectTrustStore(getAgentDir()).get(cwd) === true
+  );
 }
 
 async function loadUserPermissionHooks(): Promise<{
@@ -72,7 +92,7 @@ async function loadPackagePermissionHooks(
 
 function combineLoadedPermissionHooks(
   results: Array<{ hooks: RegisteredPermissionHook[]; errors: PermissionLoadError[] }>,
-): LoadedPermissionsRuntime {
+): { hooks: RuntimePermissionHook[]; errors: PermissionLoadError[] } {
   return {
     hooks: assignPermissionHookIds(results.flatMap((result) => result.hooks)),
     errors: results.flatMap((result) => result.errors),
@@ -173,9 +193,15 @@ export function getUserPermissionsDir(): string {
   return process.env.PI_PERMISSIONS_USER_DIR ?? join(getAgentDir(), "permissions");
 }
 
-export function notifyLoadErrors(ctx: ExtensionContext, errors: PermissionLoadError[]): void {
+export function notifyLoadProblems(ctx: ExtensionContext, loaded: LoadedPermissionsRuntime): void {
   if (!ctx.hasUI) return;
-  for (const error of errors) {
+  if (loaded.skippedUntrustedProject) {
+    ctx.ui.notify(
+      `Project permissions in ${CONFIG_DIR_NAME}/permissions were not loaded because this project has no trust decision. Run /trust and restart pi to load them.`,
+      "warning",
+    );
+  }
+  for (const error of loaded.errors) {
     ctx.ui.notify(`Failed to load permission module ${error.path}: ${error.error}`, "warning");
   }
 }
