@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Node 26 and later no longer fall outside `engines`, so installing on them no longer warns about an unsupported engine.
+
 ## [0.12.4] - 2026-11-02
 
 Verified against Pi 1.5.0.
