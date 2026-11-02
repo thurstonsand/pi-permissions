@@ -114,12 +114,12 @@ export class PermissionsSummaryOverlay {
       return;
     }
 
-    if (matchesKey(data, "pageUp")) {
+    if (getKeybindings().matches(data, "tui.select.pageUp")) {
       this.moveSelection(-MAX_VISIBLE_LINES);
       return;
     }
 
-    if (matchesKey(data, "pageDown")) {
+    if (getKeybindings().matches(data, "tui.select.pageDown")) {
       this.moveSelection(MAX_VISIBLE_LINES);
       return;
     }

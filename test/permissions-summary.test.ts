@@ -1,5 +1,12 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import type { TUI, TuiMouseEvent } from "@earendil-works/pi-tui";
+import {
+  getKeybindings,
+  KeybindingsManager,
+  setKeybindings,
+  type TUI,
+  TUI_KEYBINDINGS,
+  type TuiMouseEvent,
+} from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import { assignPermissionHookIds, type RuntimePermissionHook } from "../src/enablement.js";
 import { PermissionsSummaryOverlay } from "../src/ui/permissions-summary.js";
@@ -51,6 +58,24 @@ describe("permissions summary overlay", () => {
       [hooks[0]?.id ?? ""]: false,
       [hooks[1]?.id ?? ""]: false,
     });
+  });
+
+  it("pages with the configured select page keys", () => {
+    const original = getKeybindings();
+    setKeybindings(new KeybindingsManager(TUI_KEYBINDINGS, { "tui.select.pageDown": "ctrl+f" }));
+    try {
+      const done = vi.fn();
+      const hooks = makeHooks(Array.from({ length: 20 }, (_, index) => `Hook ${index + 1}`));
+      const overlay = new PermissionsSummaryOverlay(createTui(), createTheme(), hooks, {}, done);
+
+      overlay.handleInput("\x06");
+      overlay.handleInput(" ");
+      overlay.handleInput("\r");
+
+      expect(done).toHaveBeenCalledWith({ [hooks[12]?.id ?? ""]: false });
+    } finally {
+      setKeybindings(original);
+    }
   });
 
   it("renders a bounded visible list with a range counter", () => {
