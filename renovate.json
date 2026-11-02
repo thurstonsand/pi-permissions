@@ -73,9 +73,9 @@
       "enabled": false
     },
     {
-      "description": "@types/node describes the oldest Node the package supports, the floor in package.json's engines, rather than the newest DefinitelyTyped release or the Node mise runs. Types from a later major describe APIs that are not there on the floor, and tsc believes them. Raise the ceiling when the engines floor moves.",
+      "description": "@types/node describes the oldest Node the code must run on rather than the newest DefinitelyTyped release or the Node mise runs, so tsc rejects APIs that are not there. It follows the engines floor's major, but no lower than 22: vitest 5 declares @types/node ^22 || >=24 as a peer, and npm cannot resolve the lockfile below that.",
       "matchPackageNames": ["@types/node"],
-      "allowedVersions": "<21"
+      "allowedVersions": "<23"
     },
     {
       "description": "Renovate's own tasks run the Node that Renovate supports, ^24.11.0, while the rest of the toolchain moves to newer LTS releases.",
