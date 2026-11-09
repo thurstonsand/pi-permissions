@@ -10,7 +10,6 @@ Builds on design 03 (per-hook permission enablement). Terminology per `CONTEXT.m
 
 Effective permission enablement transitions become durable, branch-local transcript cards by rendering the custom entries already used for restoration. New entries replace the internal enablement record with one complete hook snapshot that serves both restoration and stable historical rendering; the tradeoff is a clean persisted-schema break that discards old permission state.
 
-
 ## Problem Statement / Background
 
 Permission enablement already persists through custom session entries:
