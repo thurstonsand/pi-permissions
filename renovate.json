@@ -76,12 +76,6 @@
       "description": "@types/node describes the oldest Node the code must run on rather than the newest DefinitelyTyped release or the Node mise runs, so tsc rejects APIs that are not there. It follows the engines floor's major.",
       "matchPackageNames": ["@types/node"],
       "allowedVersions": "<23"
-    },
-    {
-      "description": "Renovate supports only Node 24 (its engines say ^24.11), so the toolset its own tasks run in stays there while the repo moves on.",
-      "matchFileNames": ["mise.renovate.toml"],
-      "matchPackageNames": ["node"],
-      "allowedVersions": "<25"
     }
   ]
 }
