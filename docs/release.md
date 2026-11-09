@@ -6,6 +6,8 @@
 
 `CHANGELOG.md` opens with `## [Unreleased]`, followed by `## [x.y.z] - YYYY-MM-DD` sections, newest first. Pi shows the sections newer than the version a user last saw after they update, so `package.json` on `main` always carries the version of the newest section. `mise run lint:changelog`, part of `mise run check`, fails when a heading does not match, versions do not strictly descend, or the newest section is not `package.json`'s version.
 
+Versions follow semantic versioning: a release with any new feature (an `Added` entry), a raised floor (a higher minimum Pi, Node, OS, or other dependency version), or anything breaking is at least minor, and breaking is major from 1.0 on; patch is only for fixes and dependency updates.
+
 ## Release flow
 
 1. Add entries under `## [Unreleased]` as changes land, and review them before releasing.
