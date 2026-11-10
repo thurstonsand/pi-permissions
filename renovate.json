@@ -61,7 +61,7 @@
       "minimumReleaseAge": null
     },
     {
-      "description": "Pi updates raise the devDependency floors instead of only the lockfile. Scoped to devDependencies because bump would also rewrite the peer floors to each new Pi release, and those floors are the oldest Pi we support, raised deliberately.",
+      "description": "Pi updates raise the devDependency floors instead of only the lockfile. Scoped to devDependencies: the peers stay \"*\", as the rule below keeps them.",
       "matchPackageNames": ["@earendil-works/**"],
       "matchDepTypes": ["devDependencies"],
       "rangeStrategy": "bump"
@@ -76,6 +76,12 @@
       "description": "@types/node describes the oldest Node the code must run on rather than the newest DefinitelyTyped release or the Node mise runs, so tsc rejects APIs that are not there. It follows the engines floor's major.",
       "matchPackageNames": ["@types/node"],
       "allowedVersions": "<23"
+    },
+    {
+      "description": "Pi's docs/packages.md has a package declare the packages Pi provides as peerDependencies at \"*\", so it loads in whichever Pi hosts it. Renovate leaves those peers alone; the devDependencies carry the Pi the package is built against.",
+      "matchPackageNames": ["@earendil-works/**", "typebox"],
+      "matchDepTypes": ["peerDependencies"],
+      "enabled": false
     }
   ]
 }
