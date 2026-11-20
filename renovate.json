@@ -63,10 +63,10 @@
       "minimumReleaseAge": null
     },
     {
-      "description": "Pi updates raise the devDependency floors instead of only the lockfile. Scoped to devDependencies: the peers stay \"*\", as the rule below keeps them.",
+      "description": "Keep the supported Pi floor when a release fits the devDependency ranges; test the latest release via the lockfile.",
       "matchPackageNames": ["@earendil-works/**"],
       "matchDepTypes": ["devDependencies"],
-      "rangeStrategy": "bump"
+      "rangeStrategy": "update-lockfile"
     },
     {
       "description": "Pinned to the version pi ships. Pi's extension loader aliases typebox to its own bundled copy, so our declaration only types what pi executes and must match it. It moves when pi moves, not on Renovate's schedule; the typebox pin test reports when that happens.",
