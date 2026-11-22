@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.12.6] - 2026-11-22
+
 ### Changed
 
 - Pi's packages are peer dependencies at any version (`*`) instead of `>=1.5.0`, as Pi's package guidance asks. Pi supplies them to every extension it loads, so the range was a floor nothing enforced.
