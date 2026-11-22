@@ -855,7 +855,7 @@ class PermissionPromptOverlay implements Focusable {
 
     const second: LegendItem[] = [
       {
-        key: "ctrl+g",
+        key: this.keybindings.getKeys("app.editor.external").join("/"),
         description: "external editor",
         run: () => void this.openExternalForFocusedField(),
       },

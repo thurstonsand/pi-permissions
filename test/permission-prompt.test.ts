@@ -1,6 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   CURSOR_MARKER,
+  KeybindingsManager,
+  type KeyId,
   type TuiMouseEvent,
   type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
@@ -20,7 +22,7 @@ const KEY = {
   down: "\x1b[B",
   backspace: "\x7f",
   ctrlR: "\x12",
-  ctrlG: "\x07",
+  ctrlE: "\x05",
   ctrlS: "\x13",
 } as const;
 
@@ -53,7 +55,7 @@ const FAKE_CURSOR_START = "\x1b_pi:fc\x07";
 
 function mount(
   editable?: { command: string },
-  opts?: { highlight?: PermissionHighlight; retract?: AbortSignal },
+  opts?: { highlight?: PermissionHighlight; retract?: AbortSignal; externalKeys?: KeyId[] },
 ): Harness {
   let overlay: Overlay | undefined;
   let result: PermissionGateResult | undefined;
@@ -72,9 +74,10 @@ function mount(
     stop() {},
     start() {},
   };
-  const keybindings = {
-    matches: (data: string, id: string) => id === "app.editor.external" && data === KEY.ctrlG,
-  };
+  const keybindings = new KeybindingsManager(
+    { "app.editor.external": { defaultKeys: "ctrl+g", description: "Open external editor" } },
+    opts?.externalKeys === undefined ? {} : { "app.editor.external": opts.externalKeys },
+  );
 
   const ctx = {
     cwd: process.cwd(),
@@ -261,10 +264,13 @@ describe("permission prompt edit mode", () => {
 
   it("treats an external-editor return as a modification that discards the stash", async () => {
     vi.mocked(openExternalEditor).mockResolvedValue("git commit -m external");
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount({ command: "git commit -m hi" }, { externalKeys: ["ctrl+e", "f8"] });
     h.type("2", "X"); // buffer: "git commit -m hiX"
+    const legend = h.render().join("\n");
+    expect(legend).toContain("ctrl+e/f8 external editor");
+    expect(legend).not.toContain("ctrl+g external editor");
     h.type(KEY.ctrlR); // stash X, show original
-    h.type(KEY.ctrlG); // external editor returns a modification
+    h.type(KEY.ctrlE); // external editor returns a modification
     await flush();
     // the return replaced the buffer and discarded the stash: a round trip
     // preserves the external content rather than resurrecting "hiX"
@@ -272,6 +278,24 @@ describe("permission prompt edit mode", () => {
     const buffer = h.render().join("\n");
     expect(buffer).toContain("git commit -m external");
     expect(buffer).not.toContain("git commit -m hiX");
+  });
+
+  it.each([
+    { externalKeys: ["ctrl+g"] as const, hint: "ctrl+g external editor" },
+    { externalKeys: ["ctrl+e", "f8"] as const, hint: "ctrl+e/f8 external editor" },
+    { externalKeys: [] as const, hint: "external editor" },
+  ])("opens the external editor by clicking $hint", async ({ externalKeys, hint }) => {
+    vi.mocked(openExternalEditor).mockResolvedValue("printf edited");
+    const h = mount({ command: "printf original" }, { externalKeys: [...externalKeys] });
+    h.type("2");
+    const row = h.rowOf(hint);
+    const line = h.render()[row] ?? "";
+    expect(line).toContain(`│ ${hint}  ctrl+r original`);
+    h.mouse("click", row, { x: line.indexOf(hint) + hint.length - 1 });
+    await flush();
+    h.type(KEY.enter);
+    await flush();
+    expect(h.result()).toEqual({ kind: "edit", command: "printf edited" });
   });
 
   it("keeps j/k navigating onto a choice that carries a note draft", async () => {

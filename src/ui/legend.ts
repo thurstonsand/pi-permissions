@@ -39,12 +39,13 @@ export function layoutLegend(
       parts.push(SEPARATOR);
       column += SEPARATOR.length;
     }
-    const end = column + visibleWidth(item.key) + 1 + visibleWidth(item.description);
+    const key = item.key ? `${item.key} ` : "";
+    const end = column + visibleWidth(key) + visibleWidth(item.description);
     const run = options.width === undefined || end <= options.width ? item.run : undefined;
     if (run) {
       hits.push({ key: item.key, start: column, end, run });
     }
-    const text = theme.fg("dim", item.key) + theme.fg("muted", ` ${item.description}`);
+    const text = (key ? theme.fg("dim", key) : "") + theme.fg("muted", item.description);
     parts.push(run && item.key === options.pressedKey ? theme.bg("selectedBg", text) : text);
     column = end;
   }

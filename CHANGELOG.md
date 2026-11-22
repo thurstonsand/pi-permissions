@@ -8,6 +8,10 @@
 
 - Pi's packages are peer dependencies at any version (`*`) instead of `>=1.5.0`, as Pi's package guidance asks. Pi supplies them to every extension it loads, so the range was a floor nothing enforced.
 
+### Fixed
+
+- The permission prompt's edit pane shows your configured external-editor shortcuts instead of always showing `ctrl+g`. The label is still clickable if you remove the shortcut.
+
 ## [0.12.5] - 2026-11-02
 
 ### Changed
