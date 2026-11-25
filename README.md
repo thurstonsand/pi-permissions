@@ -302,6 +302,12 @@ For `bash` tool calls, **Edit** opens the command and an optional note in a mult
 
 ![Editing a bash command before approval](images/edit-command.png)
 
+### In RPC hosts
+
+When Pi runs in RPC mode, for example inside T3 Code, the request arrives as a select dialog the host renders. Its title is the same header and description, followed by the tool call in a Markdown code block, and it offers three choices: approve, approve and don't ask again this session, and reject. Rejecting aborts the turn. If the host lets you type your own answer, any text other than one of the choices rejects the call and tells the agent why, without aborting the turn. Notes on approvals, editing commands, and highlights are TUI-only.
+
+The host can't be told to withdraw a dialog, so "don't ask again" leaves that check's other open requests on screen and answerable.
+
 ## Managing permissions
 
 Use `/permissions` to review loaded hooks and choose which permission checks are enabled in the current session branch.

@@ -28,9 +28,14 @@ import {
 } from "../src/presentation.js";
 import { restorePermissionsState } from "../src/state.js";
 import { permissionToolInputFromToolCall } from "../src/tool-input.js";
+import { showDialogGate } from "../src/ui/dialog-prompt.js";
 import { waitForOverlaysToClear } from "../src/ui/overlay-gate.js";
 import { PendingRequests } from "../src/ui/pending-request.js";
-import { type PermissionGateResult, showPermissionGate } from "../src/ui/permission-prompt.js";
+import {
+  type PermissionGateResult,
+  type PermissionPromptView,
+  showPermissionGate,
+} from "../src/ui/permission-prompt.js";
 import { syncPermissionsStatus } from "../src/ui/status.js";
 import { loadRuntimeHooks, notifyLoadProblems, type PermissionsRuntimeState } from "./runtime.js";
 import { commitEnablement } from "./shared/toggle.js";
@@ -122,14 +127,28 @@ export function registerPermissionHooks(
       ...(decision.prompt ? { prompt: decision.prompt } : {}),
     };
 
-    // The prompt is a ui.custom overlay, which only the TUI renders; RPC
-    // reports hasUI but its ui.custom resolves undefined without asking.
-    if (!ctx.hasUI || ctx.mode !== "tui") {
+    if (!ctx.hasUI) {
       return blockToolCall(event, formatAgentFacingNoUiReason(promptInput), pendingApprovalNotes);
     }
 
     const bashEvent = isToolCallEventType("bash", event) ? event : undefined;
     const editable = bashEvent ? { command: bashEvent.input.command } : undefined;
+    const prompt = formatHumanFacingPermissionPrompt(promptInput);
+    const view: PermissionPromptView = {
+      name: prompt.name,
+      header: prompt.header,
+      toolName: promptInput.toolName,
+      detail: promptInput.toolDetail,
+      ...(promptInput.prompt?.highlight !== undefined
+        ? { highlight: promptInput.prompt.highlight }
+        : {}),
+      labels: {
+        approveLabel: prompt.approveLabel,
+        editLabel: prompt.editLabel,
+        rejectLabel: prompt.rejectLabel,
+      },
+      ...(editable ? { editable } : {}),
+    };
 
     // The pending window opens the moment the hook decides to ask and closes
     // when the approver answers, so the announcement and the attention ping
@@ -146,34 +165,22 @@ export function registerPermissionHooks(
     const openPrompt = { hook, retract: new AbortController() };
     let result: PermissionGateResult | undefined;
     try {
-      await waitForOverlaysToClear(ctx);
+      if (ctx.mode === "tui") await waitForOverlaysToClear(ctx);
 
-      // The approver can disable the deciding hook from the pane they were in
-      // when the request arrived, which retracts the question we were queued to
-      // ask.
+      // The approver can disable the deciding hook while this request waited,
+      // from the pane they were in or by saying not to ask again on another
+      // request, which retracts the question we were about to ask.
       if (!isPermissionHookEnabled(state.enablement, hook)) return undefined;
 
-      const prompt = formatHumanFacingPermissionPrompt(promptInput);
-      openPrompts.add(openPrompt);
-      result = await showPermissionGate(
-        ctx,
-        {
-          name: prompt.name,
-          header: prompt.header,
-          toolName: promptInput.toolName,
-          detail: promptInput.toolDetail,
-          ...(promptInput.prompt?.highlight !== undefined
-            ? { highlight: promptInput.prompt.highlight }
-            : {}),
-          labels: {
-            approveLabel: prompt.approveLabel,
-            editLabel: prompt.editLabel,
-            rejectLabel: prompt.rejectLabel,
-          },
-          ...(editable ? { editable } : {}),
-        },
-        openPrompt.retract.signal,
-      );
+      if (ctx.mode === "tui") {
+        openPrompts.add(openPrompt);
+        result = await showPermissionGate(ctx, view, openPrompt.retract.signal);
+      } else {
+        // Not added to openPrompts: Pi's RPC protocol cannot tell the host to
+        // withdraw a dialog, so a retracted one would stay on the host's screen
+        // with an answer nobody reads. It stays answerable instead.
+        result = await showDialogGate(ctx, view);
+      }
     } finally {
       openPrompts.delete(openPrompt);
       pi.events.emit("glimpseui:attention:resolve", {

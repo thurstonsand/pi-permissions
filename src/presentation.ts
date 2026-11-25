@@ -60,7 +60,7 @@ export function formatHumanFacingPermissionPrompt(input: PermissionPromptInput):
     .join("\n\n");
 
   return {
-    name: `! Authorization required: ${input.hookName}`,
+    name: `Authorization required: ${input.hookName}`,
     header,
     approveLabel: input.prompt?.approveLabel ?? "Authorize",
     editLabel: input.prompt?.editLabel ?? "Edit",

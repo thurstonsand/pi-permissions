@@ -103,7 +103,7 @@ function mount(
   void showPermissionGate(
     ctx,
     {
-      name: "! Authorization required: Git",
+      name: "Authorization required: Git",
       header: "message",
       toolName: "bash",
       detail: editable?.command ?? "some detail",

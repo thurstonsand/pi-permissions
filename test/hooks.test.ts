@@ -303,9 +303,152 @@ describe("pending request lifecycle", () => {
   });
 });
 
-describe("modes without the permission prompt", () => {
-  it("blocks a request in RPC mode instead of opening the prompt", async () => {
+describe("RPC mode", () => {
+  const gitCommit = { toolName: "bash", input: { command: "git commit -m 'wip'" } };
+
+  it("asks through a select whose title a host renders as Markdown", async () => {
     const runtime = createRuntime({ kind: "allow" }, { mode: "rpc" });
+
+    const toolCall = runtime.toolCall(gitCommit);
+    const dialog = await runtime.nextSelect();
+
+    expect(dialog.title).toBe(`Authorization required: Git mutations
+
+Protect reviewed git state
+
+\`\`\`sh
+git commit -m 'wip'
+\`\`\``);
+    expect(dialog.options).toEqual([
+      "Authorize",
+      "Authorize, and don't ask again this session",
+      "Abort",
+    ]);
+    dialog.answer("Authorize");
+    await expect(toolCall).resolves.toBeUndefined();
+    expect(showPermissionGate).not.toHaveBeenCalled();
+    expect(runtime.attentionEvents).toEqual([
+      ["request", "call-1"],
+      ["resolve", "call-1"],
+    ]);
+  });
+
+  it("fences a command that contains a code fence of its own", async () => {
+    const runtime = createRuntime({ kind: "allow" }, { mode: "rpc" });
+
+    void runtime.toolCall({ toolName: "bash", input: { command: "printf '```'" } });
+    const dialog = await runtime.nextSelect();
+
+    expect(dialog.title).toContain("\n\n````sh\nprintf '```'\n````");
+  });
+
+  it("disables the hook when the approver says not to ask again", async () => {
+    const runtime = createRuntime({ kind: "allow" }, { mode: "rpc" });
+
+    const toolCall = runtime.toolCall(gitCommit);
+    (await runtime.nextSelect()).answer("Authorize, and don't ask again this session");
+
+    await expect(toolCall).resolves.toBeUndefined();
+    expect(isPermissionHookEnabled(runtime.state.enablement, runtime.hook)).toBe(false);
+  });
+
+  it("rejects with a typed answer as the note, without aborting the turn", async () => {
+    const runtime = createRuntime({ kind: "allow" }, { mode: "rpc" });
+
+    const toolCall = runtime.toolCall(gitCommit);
+    (await runtime.nextSelect()).answer("  stage it yourself first  ");
+
+    await expect(toolCall).resolves.toEqual({
+      block: true,
+      reason: `Blocked by user via permission hook Git mutations
+
+The user doesn't want to proceed with this tool use, and it was rejected. To proceed, the user said:
+stage it yourself first`,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(runtime.abort).not.toHaveBeenCalled();
+  });
+
+  it("aborts the turn when the dialog is cancelled", async () => {
+    const runtime = createRuntime({ kind: "allow" }, { mode: "rpc" });
+
+    const toolCall = runtime.toolCall(gitCommit);
+    (await runtime.nextSelect()).answer(undefined);
+
+    await expect(toolCall).resolves.toEqual({
+      block: true,
+      reason: "Blocked by user via permission hook Git mutations",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(runtime.abort).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles an unanswered request when the turn is stopped, without aborting again", async () => {
+    const runtime = createRuntime({ kind: "allow" }, { mode: "rpc" });
+
+    const toolCall = runtime.toolCall(gitCommit);
+    await runtime.nextSelect();
+    runtime.stopTurn();
+
+    await expect(toolCall).resolves.toEqual({
+      block: true,
+      reason: "Blocked by user via permission hook Git mutations",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(runtime.abort).not.toHaveBeenCalled();
+  });
+
+  it("asks nothing for a hook disabled while its request was still being decided", async () => {
+    let releaseDecision: (() => void) | undefined;
+    const runtime = createRuntime(
+      { kind: "allow" },
+      {
+        mode: "rpc",
+        decide: (input) =>
+          input.tool.toolName === "bash" && input.tool.detail === "slow"
+            ? new Promise((resolve) => {
+                releaseDecision = () => resolve({ decision: "request" });
+              })
+            : { decision: "request" },
+      },
+    );
+
+    const slow = runtime.toolCall({
+      toolName: "bash",
+      input: { command: "slow" },
+      toolCallId: "call-2",
+    });
+    const fast = runtime.toolCall(gitCommit);
+    (await runtime.nextSelect()).answer("Authorize, and don't ask again this session");
+    await expect(fast).resolves.toBeUndefined();
+    releaseDecision?.();
+
+    await expect(slow).resolves.toBeUndefined();
+    expect(runtime.pendingSelects()).toBe(0);
+  });
+
+  it("leaves the hook's other open dialogs answerable after don't ask again", async () => {
+    const runtime = createRuntime({ kind: "allow" }, { mode: "rpc" });
+
+    const first = runtime.toolCall({ ...gitCommit, toolCallId: "call-1" });
+    const second = runtime.toolCall({ ...gitCommit, toolCallId: "call-2" });
+    const firstDialog = await runtime.nextSelect();
+    const secondDialog = await runtime.nextSelect();
+    firstDialog.answer("Authorize, and don't ask again this session");
+    await expect(first).resolves.toBeUndefined();
+
+    secondDialog.answer("Abort");
+
+    await expect(second).resolves.toEqual({
+      block: true,
+      reason: "Blocked by user via permission hook Git mutations",
+    });
+  });
+});
+
+describe("modes without a UI", () => {
+  it("blocks a request instead of asking", async () => {
+    const runtime = createRuntime({ kind: "allow" }, { hasUI: false });
 
     const result = await runtime.toolCall();
 
@@ -322,10 +465,12 @@ function createRuntime(
   result: PermissionGateResult,
   options: {
     mode?: "tui" | "rpc";
+    hasUI?: boolean;
     overlayOpen?: boolean;
     deferPrompt?: boolean;
     tools?: { name: string; annotations?: object }[];
     decision?: PermissionDecision;
+    decide?: (input: PermissionInput) => PermissionDecision | Promise<PermissionDecision>;
   } = {},
 ) {
   let overlayOpen = options.overlayOpen ?? false;
@@ -355,6 +500,7 @@ function createRuntime(
       modulePath: "/permissions/git.ts",
       handler: (input: PermissionInput) => {
         seenInputs.push(input);
+        if (options.decide) return options.decide(input);
         return options.decision ?? { decision: "request" as const };
       },
     },
@@ -369,6 +515,10 @@ function createRuntime(
   const tui = { hasOverlay: () => overlayOpen } as unknown as TUI;
   let mounted = 0;
   const appendEntry = vi.fn();
+  const abort = vi.fn();
+  const turn = new AbortController();
+  const selects: SelectDialog[] = [];
+  const selectWaiters: ((dialog: SelectDialog) => void)[] = [];
   const state = { hooks: [hook], enablement: {} };
   const pendingApprovalNotes = new PendingApprovalNotes();
 
@@ -392,7 +542,9 @@ function createRuntime(
   const ctx = {
     cwd: "/repo",
     mode: options.mode ?? "tui",
-    hasUI: true,
+    hasUI: options.hasUI ?? true,
+    abort,
+    signal: turn.signal,
     sessionManager: { getBranch: () => [] },
     ui: {
       theme: { fg: (_color: string, text: string) => text },
@@ -407,6 +559,14 @@ function createRuntime(
         mounted += 1;
       },
       setWorkingMessage: (message?: string) => workingMessages.push(message),
+      select: (title: string, choices: string[], opts?: { signal?: AbortSignal }) =>
+        new Promise<string | undefined>((resolve) => {
+          opts?.signal?.addEventListener("abort", () => resolve(undefined), { once: true });
+          const dialog = { title, options: choices, answer: resolve };
+          const waiter = selectWaiters.shift();
+          if (waiter) waiter(dialog);
+          else selects.push(dialog);
+        }),
     },
   };
 
@@ -414,6 +574,15 @@ function createRuntime(
     hook,
     state,
     appendEntry,
+    abort,
+    stopTurn: () => turn.abort(),
+    pendingSelects: () => selects.length,
+    nextSelect: () =>
+      new Promise<SelectDialog>((resolve) => {
+        const dialog = selects.shift();
+        if (dialog) resolve(dialog);
+        else selectWaiters.push(resolve);
+      }),
     notifications,
     statuses,
     pendingApprovalNotes,
@@ -440,4 +609,10 @@ function createRuntime(
         ctx,
       ),
   };
+}
+
+interface SelectDialog {
+  title: string;
+  options: string[];
+  answer: (choice: string | undefined) => void;
 }

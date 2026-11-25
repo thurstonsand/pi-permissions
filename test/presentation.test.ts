@@ -22,7 +22,7 @@ describe("human-facing permission prompts", () => {
         },
       }),
     ).toEqual({
-      name: "! Authorization required: Git interference",
+      name: "Authorization required: Git interference",
       header: `Git staging is reserved for the approver.
 
 Review the command chain.`,

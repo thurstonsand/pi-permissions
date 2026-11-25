@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Permission requests work in RPC mode (`pi --mode rpc`), such as Pi inside T3 Code, instead of always being blocked. The host shows a select dialog with the request's header, description, and the tool call in a code block, offering approve, approve and don't ask again this session, and reject. An answer you type yourself rejects the call and tells the agent why. Notes on approvals, command editing, and highlights stay TUI-only.
+
+### Changed
+
+- The permission prompt's header reads "Authorization required: <name>", without the leading `!`.
+
 ## [0.12.6] - 2026-11-22
 
 ### Changed
