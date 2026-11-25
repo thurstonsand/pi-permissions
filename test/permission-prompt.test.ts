@@ -1,17 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import {
-  CURSOR_MARKER,
-  KeybindingsManager,
-  type KeyId,
-  type TuiMouseEvent,
-  type TuiMouseEventResult,
-} from "@earendil-works/pi-tui";
-import { describe, expect, it, vi } from "vitest";
+import type { TuiMouseEvent, TuiMouseEventResult } from "@earendil-works/pi-tui";
+import { describe, expect, it } from "vitest";
 import type { PermissionHighlight } from "../src/highlight.js";
-import { openExternalEditor } from "../src/ui/external-editor.js";
 import { type PermissionGateResult, showPermissionGate } from "../src/ui/permission-prompt.js";
-
-vi.mock("../src/ui/external-editor.js", () => ({ openExternalEditor: vi.fn() }));
 
 const KEY = {
   enter: "\r",
@@ -20,13 +11,10 @@ const KEY = {
   shiftTab: "\x1b[Z",
   up: "\x1b[A",
   down: "\x1b[B",
-  backspace: "\x7f",
-  ctrlR: "\x12",
-  ctrlE: "\x05",
   ctrlS: "\x13",
 } as const;
 
-const LABELS = { approveLabel: "Authorize", rejectLabel: "Abort", editLabel: "Edit" };
+const LABELS = { approveLabel: "Authorize", rejectLabel: "Abort" };
 
 type Overlay = {
   handleInput(data: string): void;
@@ -51,11 +39,9 @@ type Harness = {
 };
 
 const WIDTH = 60;
-const FAKE_CURSOR_START = "\x1b_pi:fc\x07";
 
 function mount(
-  editable?: { command: string },
-  opts?: { highlight?: PermissionHighlight; retract?: AbortSignal; externalKeys?: KeyId[] },
+  opts: { detail?: string; highlight?: PermissionHighlight; retract?: AbortSignal } = {},
 ): Harness {
   let overlay: Overlay | undefined;
   let result: PermissionGateResult | undefined;
@@ -71,13 +57,7 @@ function mount(
   const tui = {
     requestRender() {},
     terminal: { rows: 40, cols: 80 },
-    stop() {},
-    start() {},
   };
-  const keybindings = new KeybindingsManager(
-    { "app.editor.external": { defaultKeys: "ctrl+g", description: "Open external editor" } },
-    opts?.externalKeys === undefined ? {} : { "app.editor.external": opts.externalKeys },
-  );
 
   const ctx = {
     cwd: process.cwd(),
@@ -93,7 +73,7 @@ function mount(
         ) => Overlay,
       ): Promise<T> {
         return new Promise<T>((resolve) => {
-          overlay = factory(tui, theme, keybindings, resolve as (value: T) => void);
+          overlay = factory(tui, theme, undefined, resolve as (value: T) => void);
           overlay.focused = true;
         });
       },
@@ -106,12 +86,11 @@ function mount(
       name: "Authorization required: Git",
       header: "message",
       toolName: "bash",
-      detail: editable?.command ?? "some detail",
+      detail: opts.detail ?? "git commit -m hi",
       labels: LABELS,
-      ...(opts?.highlight !== undefined ? { highlight: opts.highlight } : {}),
-      ...(editable ? { editable } : {}),
+      ...(opts.highlight !== undefined ? { highlight: opts.highlight } : {}),
     },
-    opts?.retract ?? new AbortController().signal,
+    opts.retract ?? new AbortController().signal,
   ).then((value) => {
     result = value;
     settled = true;
@@ -152,206 +131,25 @@ function mount(
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-describe("permission prompt edit mode", () => {
-  it("edits a bash command and returns the edited command", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2", "X", KEY.enter);
-    await flush();
-    expect(h.result()).toEqual({ kind: "edit", command: "git commit -m hiX" });
-  });
-
-  it("degrades an unchanged submit to a plain approval", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2", KEY.enter);
-    await flush();
-    expect(h.result()).toEqual({ kind: "allow" });
-  });
-
-  it("keeps an unchanged submit with a note as approve-with-note", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2", KEY.tab, "n", "o", "t", "e", KEY.enter);
-    await flush();
-    expect(h.result()).toEqual({ kind: "allow", note: "note" });
-  });
-
-  it("emits a full edit note when the command changed and a note was given", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2", "X", KEY.tab, "w", "h", "y", KEY.enter);
-    await flush();
-    expect(h.result()).toEqual({ kind: "edit", command: "git commit -m hiX", note: "why" });
-  });
-
-  it("runs the original command when the edit is escaped then authorized", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2", "X", KEY.escape, "1");
-    await flush();
-    expect(h.result()).toEqual({ kind: "allow" });
-  });
-
-  it("retains the note draft across an escape back to select mode", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2", KEY.tab, "k", "e", "e", "p", KEY.escape, "2", KEY.enter);
-    await flush();
-    expect(h.result()).toEqual({ kind: "allow", note: "keep" });
-  });
-
-  it("seeds the note field from the Edit choice's tab draft", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type(KEY.down, KEY.tab, "s", "e", "e", "d", KEY.enter, KEY.enter);
-    await flush();
-    expect(h.result()).toEqual({ kind: "allow", note: "seed" });
-  });
-
-  it("refuses a blank command and shows a warning without resolving", async () => {
-    const h = mount({ command: "x" });
-    h.type("2", KEY.backspace, KEY.enter);
-    await flush();
-    expect(h.result()).toBeUndefined();
-    expect(h.render().join("\n")).toContain("An empty command achieves nothing");
-  });
-
-  it("runs the expanded paste content, not the collapsed marker, when submitting from the note field", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    const pasted = `echo ${"a".repeat(1100)}`;
-    h.type("2", `\x1b[200~${pasted}\x1b[201~`);
-    // submit from the note field, the path that previously used raw getText()
-    h.type(KEY.tab, KEY.enter);
-    await flush();
-    const result = h.result();
-    expect(result?.kind).toBe("edit");
-    expect(result).toEqual({ kind: "edit", command: `git commit -m hi${pasted}` });
-    expect((result as { command: string }).command).not.toContain("[paste #");
-  });
-
-  it("ctrl+r toggles between edits and the original, preserving edits on round trip", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2", "X"); // buffer: "git commit -m hiX"
-    h.type(KEY.ctrlR); // stash edits, show original
-    expect(h.render().join("\n")).toContain("git commit -m hi");
-    h.type(KEY.ctrlR); // swap the edits back in
-    h.type(KEY.enter);
-    await flush();
-    expect(h.result()).toEqual({ kind: "edit", command: "git commit -m hiX" });
-  });
-
-  it("submits the original as a plain approval when ctrl+r is showing it", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2", "X", KEY.ctrlR, KEY.enter); // edit, toggle to original, submit
-    await flush();
-    expect(h.result()).toEqual({ kind: "allow" });
-  });
-
-  it("discards the stash when the buffer is modified while showing the original", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2", "X"); // buffer: "git commit -m hiX"
-    h.type(KEY.ctrlR); // stash X, show original
-    h.type("Y"); // modify original -> stash discarded, buffer: "git commit -m hiY"
-    h.type(KEY.ctrlR, KEY.ctrlR); // round trip must preserve Y, not resurrect X
-    const buffer = h.render().join("\n");
-    expect(buffer).toContain("git commit -m hiY");
-    expect(buffer).not.toContain("git commit -m hiX");
-  });
-
-  it("preserves the stash across esc and re-entering edit mode", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2", "X", KEY.ctrlR); // stash X, show original
-    h.type(KEY.escape, "2"); // back to select, re-enter edit
-    h.type(KEY.ctrlR); // restore the stashed edits
-    h.type(KEY.enter);
-    await flush();
-    expect(h.result()).toEqual({ kind: "edit", command: "git commit -m hiX" });
-  });
-
-  it("treats an external-editor return as a modification that discards the stash", async () => {
-    vi.mocked(openExternalEditor).mockResolvedValue("git commit -m external");
-    const h = mount({ command: "git commit -m hi" }, { externalKeys: ["ctrl+e", "f8"] });
-    h.type("2", "X"); // buffer: "git commit -m hiX"
-    const legend = h.render().join("\n");
-    expect(legend).toContain("ctrl+e/f8 external editor");
-    expect(legend).not.toContain("ctrl+g external editor");
-    h.type(KEY.ctrlR); // stash X, show original
-    h.type(KEY.ctrlE); // external editor returns a modification
-    await flush();
-    // the return replaced the buffer and discarded the stash: a round trip
-    // preserves the external content rather than resurrecting "hiX"
-    h.type(KEY.ctrlR, KEY.ctrlR);
-    const buffer = h.render().join("\n");
-    expect(buffer).toContain("git commit -m external");
-    expect(buffer).not.toContain("git commit -m hiX");
-  });
-
-  it.each([
-    { externalKeys: ["ctrl+g"] as const, hint: "ctrl+g external editor" },
-    { externalKeys: ["ctrl+e", "f8"] as const, hint: "ctrl+e/f8 external editor" },
-    { externalKeys: [] as const, hint: "external editor" },
-  ])("opens the external editor by clicking $hint", async ({ externalKeys, hint }) => {
-    vi.mocked(openExternalEditor).mockResolvedValue("printf edited");
-    const h = mount({ command: "printf original" }, { externalKeys: [...externalKeys] });
-    h.type("2");
-    const row = h.rowOf(hint);
-    const line = h.render()[row] ?? "";
-    expect(line).toContain(`│ ${hint}  ctrl+r original`);
-    h.mouse("click", row, { x: line.indexOf(hint) + hint.length - 1 });
-    await flush();
-    h.type(KEY.enter);
-    await flush();
-    expect(h.result()).toEqual({ kind: "edit", command: "printf edited" });
-  });
-
+describe("permission prompt", () => {
   it("keeps j/k navigating onto a choice that carries a note draft", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    // put a note on the Edit choice, close editing, move back to Authorize
+    const h = mount();
+    // put a note on Abort, close it, move back to Authorize
     h.type(KEY.down, KEY.tab, "n", "o", "t", "e", KEY.shiftTab, KEY.up);
-    // j moves onto Edit (which carries the note); k must move back off rather
+    // j moves onto Abort (which carries the note); k must move back off rather
     // than type into the note
     h.type("j", "k", KEY.enter);
     await flush();
     expect(h.result()).toEqual({ kind: "allow" });
   });
 
-  it("toggles fields with shift+tab as well as tab", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    // enter edit (command focused), shift+tab to the note field, type a note
-    h.type("2", KEY.shiftTab, "n", "o", "t", "e", KEY.enter);
-    await flush();
-    expect(h.result()).toEqual({ kind: "allow", note: "note" });
-  });
-
-  it("shows one cursor and a contextual legend as focus moves between fields", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2");
-    // command field: editor paints its fake cursor, shift+enter is offered
-    const command = h.render().join("\n");
-    expect(command).toContain(FAKE_CURSOR_START);
-    expect(command).toContain("shift+enter");
-
-    h.type(KEY.tab);
-    // note field: command editor cursor is stripped, shift+enter is hidden
-    const note = h.render().join("\n");
-    expect(note).not.toContain(FAKE_CURSOR_START);
-    expect(note).not.toContain("shift+enter");
-  });
-
-  it("previews the edited command plain under Edit, the highlighted original otherwise", async () => {
-    const h = mount({ command: "git stash lst" }, { highlight: /git stash \w+/ });
-    // Accept highlighted: original with its frozen highlight
-    expect(h.render().join("\n")).toContain("[[git stash lst]]");
-
-    // edit, esc back with Edit highlighted: the live buffer, no highlight
-    h.type("2", "X", KEY.escape);
-    const edit = h.render().join("\n");
-    expect(edit).toContain("git stash lstX");
-    expect(edit).not.toContain("[[");
-
-    // move up to Accept: the original with its highlight again, not the edit
-    h.type(KEY.up);
-    const accept = h.render().join("\n");
-    expect(accept).toContain("[[git stash lst]]");
-    expect(accept).not.toContain("git stash lstX");
+  it("emphasizes the highlighted fragment of the detail", () => {
+    const h = mount({ detail: "git stash lst", highlight: /stash \w+/ });
+    expect(h.render().join("\n")).toContain("git [[stash lst]]");
   });
 
   it("frames the detail in an inner box labeled with the tool name", () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     const lines = h.render();
     const top = lines.findIndex((line) => line.includes("╭─ bash "));
     const bottom = lines.findIndex((line) => line.includes("╰"));
@@ -361,9 +159,8 @@ describe("permission prompt edit mode", () => {
     expect(lines.slice(top + 1, bottom).join("\n")).toContain("git commit -m hi");
   });
 
-  it("offers no edit choice for non-bash tool calls", async () => {
+  it("aborts from the second number key", async () => {
     const h = mount();
-    expect(h.render().join("\n")).not.toContain("Edit");
     h.type("2");
     await flush();
     expect(h.result()).toEqual({ kind: "reject", abort: true });
@@ -374,7 +171,7 @@ describe("permission prompt body scrolling", () => {
   const longCommand = `git commit -m "${"word ".repeat(400)}TAIL_MARKER"`;
 
   it("windows a tall body so the options and legend stay on screen", () => {
-    const h = mount({ command: longCommand });
+    const h = mount({ detail: longCommand });
     const lines = h.render();
     const text = lines.join("\n");
 
@@ -389,7 +186,7 @@ describe("permission prompt body scrolling", () => {
   });
 
   it("pages forward with f and back with b, marking off-screen lines in the borders", () => {
-    const h = mount({ command: longCommand });
+    const h = mount({ detail: longCommand });
     h.render(); // establish the window before scrolling
 
     h.type("f");
@@ -405,7 +202,7 @@ describe("permission prompt body scrolling", () => {
   });
 
   it("leaves f/b inert and unwindowed when the body fits", async () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     h.render();
     h.type("f", "b");
     const text = h.render().join("\n");
@@ -415,7 +212,7 @@ describe("permission prompt body scrolling", () => {
   });
 
   it("still types f and b into an open note draft", async () => {
-    const h = mount({ command: longCommand });
+    const h = mount({ detail: longCommand });
     h.render();
     h.type(KEY.tab, "f", "b", KEY.enter);
     await flush();
@@ -427,7 +224,7 @@ describe("permission prompt mouse", () => {
   const longCommand = `git commit -m "${"word ".repeat(400)}TAIL_MARKER"`;
 
   it("authorizes when an option is pressed and released", async () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     const row = h.rowOf("1. Authorize");
 
     h.mouse("press", row);
@@ -437,9 +234,9 @@ describe("permission prompt mouse", () => {
     expect(h.result()).toEqual({ kind: "allow" });
   });
 
-  it("aborts on a click three rows down the option list", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    const row = h.rowOf("3. Abort");
+  it("aborts on a click on the second option", async () => {
+    const h = mount();
+    const row = h.rowOf("2. Abort");
 
     h.mouse("press", row);
     h.mouse("click", row);
@@ -449,24 +246,24 @@ describe("permission prompt mouse", () => {
   });
 
   it("moves the highlight on press without deciding anything", () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
 
-    const result = h.mouse("press", h.rowOf("2. Edit"));
+    const result = h.mouse("press", h.rowOf("2. Abort"));
 
     expect(result).toEqual({ handled: true, focus: true, render: true });
-    expect(h.render().join("\n")).toContain("→ 2. Edit");
+    expect(h.render().join("\n")).toContain("→ 2. Abort");
     expect(h.result()).toBeUndefined();
   });
 
   it("leaves hover alone so the pointer cannot arm the enter key", () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
 
-    expect(h.mouse("move", h.rowOf("3. Abort"))).toBeUndefined();
+    expect(h.mouse("move", h.rowOf("2. Abort"))).toBeUndefined();
     expect(h.render().join("\n")).toContain("→ 1. Authorize");
   });
 
   it("ignores clicks that land outside the option rows", async () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
 
     expect(h.mouse("click", h.rowOf("↑↓ select"))).toBeUndefined();
     await flush();
@@ -474,7 +271,7 @@ describe("permission prompt mouse", () => {
   });
 
   it("declines a click on the frame padding right of an option", async () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     const row = h.rowOf("1. Authorize");
 
     expect(h.mouse("press", row, { x: 2 + "  1. Authorize".length })).toBeUndefined();
@@ -485,7 +282,7 @@ describe("permission prompt mouse", () => {
   });
 
   it("still takes a click past the end of an open note, as a text field would", async () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     h.type(KEY.tab, "a", "b");
     const row = h.rowOf("1. Authorize");
 
@@ -497,14 +294,14 @@ describe("permission prompt mouse", () => {
   });
 
   it("confirms from the enter hint and aborts from the esc hint", async () => {
-    const confirmed = mount({ command: "git commit -m hi" });
+    const confirmed = mount();
     const confirmRow = confirmed.rowOf("enter confirm");
     const confirmLine = confirmed.render()[confirmRow] ?? "";
     confirmed.mouse("click", confirmRow, { x: confirmLine.indexOf("enter confirm") });
     await flush();
     expect(confirmed.result()).toEqual({ kind: "allow" });
 
-    const aborted = mount({ command: "git commit -m hi" });
+    const aborted = mount();
     const abortRow = aborted.rowOf("esc abort");
     const abortLine = aborted.render()[abortRow] ?? "";
     aborted.mouse("click", abortRow, { x: abortLine.indexOf("esc abort") });
@@ -513,7 +310,7 @@ describe("permission prompt mouse", () => {
   });
 
   it("opens a note from the tab hint", async () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     const row = h.rowOf("tab add note");
     const line = h.render()[row] ?? "";
 
@@ -525,7 +322,7 @@ describe("permission prompt mouse", () => {
   });
 
   it("leaves direction-only hints inert, since they name no single action", async () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     const row = h.rowOf("↑↓ select");
     const line = h.render()[row] ?? "";
 
@@ -535,7 +332,7 @@ describe("permission prompt mouse", () => {
   });
 
   it("scrolls the detail window by the wheel's line count", () => {
-    const h = mount({ command: longCommand });
+    const h = mount({ detail: longCommand });
     h.render(); // establish the window before scrolling
 
     expect(h.mouse("wheel", 6, { wheelDelta: 3 })).toEqual({ handled: true, render: true });
@@ -548,21 +345,21 @@ describe("permission prompt mouse", () => {
   });
 
   it("reports no render when the wheel is already against a scroll stop", () => {
-    const h = mount({ command: longCommand });
+    const h = mount({ detail: longCommand });
     h.render();
 
     expect(h.mouse("wheel", 6, { wheelDelta: -3 })).toEqual({ handled: true, render: false });
   });
 
   it("declines the wheel when the detail fits, leaving it to the transcript", () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     h.render();
 
     expect(h.mouse("wheel", 6, { wheelDelta: 3 })).toBeUndefined();
   });
 
   it("edits an open note instead of authorizing when the click lands in it", async () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     h.type(KEY.tab, "a", "b", "c", "d");
     const row = h.rowOf("1. Authorize");
 
@@ -576,10 +373,9 @@ describe("permission prompt mouse", () => {
 });
 
 describe("permission prompt legend press feedback", () => {
-  it.each([false, true])("highlights only the hint until release, edit=%s", async (edit) => {
-    const h = mount({ command: "echo ok" });
-    if (edit) h.type("2", KEY.enter);
-    const hint = edit ? "esc back" : "esc abort";
+  it("highlights only the hint until release", async () => {
+    const h = mount();
+    const hint = "esc abort";
     const row = h.rowOf(hint);
     const x = (h.render()[row] ?? "").indexOf(hint);
 
@@ -590,8 +386,7 @@ describe("permission prompt legend press feedback", () => {
     expect(h.render()[row]).not.toContain("\x1b[44m");
     h.mouse("click", row, { x });
     await flush();
-    if (edit) expect(h.render().join("\n")).toContain("esc abort");
-    else expect(h.result()).toEqual({ kind: "reject", abort: true });
+    expect(h.result()).toEqual({ kind: "reject", abort: true });
   });
 
   it("clears the hint highlight when dragging away or pressing padding", () => {
@@ -616,37 +411,15 @@ describe("permission prompt legend press feedback", () => {
 // re-rendered into that row since. Reusing the press row is what makes these
 // tests faithful rather than a convenience.
 describe("permission prompt mouse gesture identity", () => {
-  function withReflowingDetail() {
-    const h = mount({ command: "echo original" });
-    h.type("2");
-    h.type(..." && echo a-very-long-tail-that-wraps-onto-a-second-line".split(""));
-    h.type(KEY.escape, KEY.up);
-    h.render();
-    return h;
-  }
-
-  it("acts on the option that was pressed, not the one that reflowed under it", async () => {
-    const h = withReflowingDetail();
-    const editRow = h.rowOf("2. Edit");
-    expect(h.render()[h.rowOf("1. Authorize")]).toContain("→ 1. Authorize");
-
-    h.mouse("press", editRow);
-    // Selecting Edit swaps the detail box to the taller edit buffer, pushing
-    // every option down a row.
-    expect(h.render()[editRow]).toContain("1. Authorize");
-
-    h.mouse("click", editRow);
-    await flush();
-
-    expect(h.result()).toBeUndefined();
-    expect(h.render().join("\n")).toContain("Note to agent");
-  });
-
-  it("does not let a reflowed row reach the legend beneath it", async () => {
-    const h = withReflowingDetail();
-    const abortRow = h.rowOf("3. Abort");
+  it("acts on the option that was pressed, not what reflowed under it", async () => {
+    const h = mount();
+    h.type(KEY.tab, ..."a note long enough to wrap onto a second line of the prompt".split(""));
+    const abortRow = h.rowOf("2. Abort");
 
     h.mouse("press", abortRow);
+    // Selecting Abort closes the wrapped note on Authorize, pulling Abort up a row.
+    expect(h.render()[abortRow]).not.toContain("2. Abort");
+
     h.mouse("click", abortRow);
     await flush();
 
@@ -654,8 +427,8 @@ describe("permission prompt mouse gesture identity", () => {
   });
 
   it("forgets a gesture abandoned by dragging off the option", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.mouse("press", h.rowOf("3. Abort"));
+    const h = mount();
+    h.mouse("press", h.rowOf("2. Abort"));
 
     // No click follows, because the pointer moved. The next click is a fresh
     // one on the legend, and must not inherit the abandoned choice: it opens a
@@ -674,153 +447,39 @@ describe("permission prompt mouse gesture identity", () => {
   });
 });
 
-describe("permission prompt mouse in edit mode", () => {
-  const enterEditMode = () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2");
-    h.render();
-    return h;
-  };
-
-  it("places the command cursor where the click landed", async () => {
-    const h = enterEditMode();
-
-    // The editor paints its text flush with the frame inset, so this is the
-    // cell immediately after "git".
-    h.mouse("click", h.rowOf("git commit -m hi"), { x: 2 + "git".length });
-    h.type("X", KEY.enter);
-    await flush();
-
-    expect(h.result()).toEqual({ kind: "edit", command: "gitX commit -m hi" });
-  });
-
-  it("moves focus to the note field and back by clicking each one", async () => {
-    const h = enterEditMode();
-
-    h.mouse("click", h.rowOf("Note to agent") + 1);
-    h.type("n", "o", "t", "e");
-
-    h.mouse("click", h.rowOf("git commit -m hi"), { x: 2 + "git commit -m hi".length });
-    h.type("!", KEY.enter);
-    await flush();
-
-    expect(h.result()).toEqual({ kind: "edit", command: "git commit -m hi!", note: "note" });
-  });
-
-  it("focuses a field from its label without moving the cursor", async () => {
-    const h = enterEditMode();
-    h.type("X"); // cursor sits after the command's last character
-
-    h.mouse("click", h.rowOf("Note to agent"));
-    h.type("n");
-    h.mouse("click", h.rowOf("Command"));
-    h.type("Y", KEY.enter);
-    await flush();
-
-    expect(h.result()).toEqual({ kind: "edit", command: "git commit -m hiXY", note: "n" });
-  });
-
-  it("hands the embedded editor its focus back when the command is clicked", () => {
-    const h = enterEditMode();
-
-    h.type(KEY.tab); // focus the note by keyboard
-    h.mouse("click", h.rowOf("git commit -m hi"), { x: 2 });
-
-    // Pi positions the hardware cursor and the IME window from the marker the
-    // Editor paints only while focused.
-    expect(h.render().join("")).toContain(CURSOR_MARKER);
-  });
-
-  it("takes the marker off the editor when the note is clicked", () => {
-    const h = enterEditMode();
-
-    h.mouse("click", h.rowOf("Note to agent") + 1);
-
-    expect(h.render()[h.rowOf("git commit -m hi")] ?? "").not.toContain(CURSOR_MARKER);
-  });
-
-  it("leaves presses and drags alone so text selection still works", () => {
-    const h = enterEditMode();
-
-    expect(h.mouse("press", h.rowOf("git commit -m hi"))).toBeUndefined();
-    expect(h.mouse("drag", h.rowOf("git commit -m hi"))).toBeUndefined();
-  });
-
-  it("runs an edit-legend hint that is clicked", async () => {
-    const h = enterEditMode();
-    h.type("X");
-
-    h.mouse("click", h.rowOf("enter run"), { x: 2 });
-    await flush();
-
-    expect(h.result()).toEqual({ kind: "edit", command: "git commit -m hiX" });
-  });
-
-  it("switches fields from the tab hint", async () => {
-    const h = enterEditMode();
-    const line = h.render()[h.rowOf("switch to note")] ?? "";
-
-    h.mouse("click", h.rowOf("switch to note"), { x: line.indexOf("tab switch") });
-    h.type("n", "o", "t", "e", KEY.enter);
-    await flush();
-
-    expect(h.result()).toEqual({ kind: "allow", note: "note" });
-  });
-
-  it("ignores clicks on the gap between legend hints", async () => {
-    const h = enterEditMode();
-    const row = h.rowOf("enter run");
-    const line = h.render()[row] ?? "";
-
-    // The two spaces joining "enter run" to the hint after it.
-    expect(h.mouse("click", row, { x: line.indexOf("enter run") + "enter run".length })).toBe(
-      undefined,
-    );
-    await flush();
-    expect(h.result()).toBeUndefined();
-  });
-});
-
 describe("permission prompt don't ask again", () => {
   it("allows for the session from select mode", async () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     h.type(KEY.ctrlS);
     await flush();
     expect(h.result()).toEqual({ kind: "allow", forSession: true });
   });
 
   it("carries the Authorize note drafted before returning to select mode", async () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     h.type(KEY.tab, "w", "h", "y", KEY.shiftTab, KEY.ctrlS);
     await flush();
     expect(h.result()).toEqual({ kind: "allow", forSession: true, note: "why" });
   });
 
   it("commits mid-note without waiting for the note to be closed", async () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     h.type(KEY.tab, "w", "h", "y", KEY.ctrlS);
     await flush();
     expect(h.result()).toEqual({ kind: "allow", forSession: true, note: "why" });
   });
 
   it("uses the Authorize note while a note on another choice is being edited", async () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     // note on Authorize, then a competing note on Abort; only the first travels
     h.type(KEY.tab, "y", "e", "s", KEY.shiftTab);
-    h.type(KEY.down, KEY.down, KEY.tab, "n", "o", KEY.ctrlS);
+    h.type(KEY.down, KEY.tab, "n", "o", KEY.ctrlS);
     await flush();
     expect(h.result()).toEqual({ kind: "allow", forSession: true, note: "yes" });
   });
 
-  it("ignores ctrl+s once inside edit mode", async () => {
-    const h = mount({ command: "git commit -m hi" });
-    h.type("2", KEY.ctrlS);
-    await flush();
-    expect(h.result()).toBeUndefined();
-  });
-
   it("advertises the outcome on a two-line select legend", () => {
-    const h = mount({ command: "git commit -m hi" });
+    const h = mount();
     const lines = h.render();
     const legendStart = lines.findIndex((line) => line.includes("↑↓"));
 
@@ -835,7 +494,7 @@ describe("permission prompt don't ask again", () => {
 describe("permission prompt retraction", () => {
   it("closes without an answer once retracted", async () => {
     const retract = new AbortController();
-    const h = mount(undefined, { retract: retract.signal });
+    const h = mount({ retract: retract.signal });
 
     retract.abort();
     await flush();

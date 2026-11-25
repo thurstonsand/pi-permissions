@@ -21,7 +21,6 @@ export type PermissionDecision =
 
 export interface PermissionRequestLabels {
   approveLabel?: string;
-  editLabel?: string;
   rejectLabel?: string;
 }
 

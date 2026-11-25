@@ -8,7 +8,7 @@ type WrappedLine = {
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
-export function sanitizeDraftInput(text: string): string {
+function sanitizeDraftInput(text: string): string {
   return text
     .replaceAll("\x1b[200~", "")
     .replaceAll("\x1b[201~", "")
@@ -16,9 +16,8 @@ export function sanitizeDraftInput(text: string): string {
 }
 
 // A single-line, grapheme-aware text field. Owns its own buffer and cursor so
-// the several places that collect approver notes (each select-mode choice, plus
-// the edit-mode note field) are distinct instances rather than one buffer shared
-// through a moving index.
+// each choice's approver note is a distinct instance rather than one buffer
+// shared through a moving index.
 export class DraftInput {
   text = "";
   cursor = 0;
@@ -54,11 +53,6 @@ export class DraftInput {
     }
 
     this.cursor = Math.min(line.startIndex + index, this.text.length);
-  }
-
-  setText(text: string): void {
-    this.text = text;
-    this.toEnd();
   }
 
   handleInput(data: string): void {

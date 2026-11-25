@@ -15,7 +15,8 @@ const KEY = {
 
 function draft(text: string): DraftInput {
   const input = new DraftInput(theme);
-  input.setText(text); // cursor lands at the end
+  input.text = text;
+  input.toEnd();
   return input;
 }
 

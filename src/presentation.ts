@@ -6,15 +6,8 @@ export type ApprovalNote = {
   note: string;
 };
 
-export type EditNote = {
-  hookName: string;
-  command: string;
-  note?: string;
-};
-
 export type PendingToolResultNote =
   | ({ kind: "approval" } & ApprovalNote)
-  | ({ kind: "edit" } & EditNote)
   | { kind: "block"; reason: string }
   | { kind: "nested"; toolName: string; note: PendingToolResultNote };
 
@@ -52,7 +45,6 @@ export function formatHumanFacingPermissionPrompt(input: PermissionPromptInput):
   name: string;
   header: string;
   approveLabel: string;
-  editLabel: string;
   rejectLabel: string;
 } {
   const header = [input.description, input.prompt?.guidance]
@@ -63,26 +55,8 @@ export function formatHumanFacingPermissionPrompt(input: PermissionPromptInput):
     name: `Authorization required: ${input.hookName}`,
     header,
     approveLabel: input.prompt?.approveLabel ?? "Authorize",
-    editLabel: input.prompt?.editLabel ?? "Edit",
     rejectLabel: input.prompt?.rejectLabel ?? "Abort",
   };
-}
-
-// The tool-detail line (`toolName: <command>`) is rendered separately from the
-// prompt header so the overlay can re-derive it — and recompute highlights —
-// against whatever command is current (the agent's original, or the approver's
-// edit).
-export function formatToolDetailLine(
-  toolName: string,
-  detail: string,
-  highlight: PermissionRequestPrompt["highlight"],
-  emphasize: PermissionPromptEmphasis = identity,
-): string {
-  return `${toolName}: ${formatHighlightedDetail(detail, highlight, emphasize)}`;
-}
-
-function identity(fragment: string): string {
-  return fragment;
 }
 
 export function formatHighlightedDetail(
@@ -124,26 +98,10 @@ The user approved this tool use and provided additional context for how to proce
 ${note}`;
 }
 
-export function formatAgentFacingEditNote({ hookName, command, note }: EditNote): string {
-  const base = `Edited by user via permission hook ${hookName}
-
-The user edited this command before execution. The command that actually ran:
-${command}`;
-
-  if (!note) return base;
-
-  return `${base}
-
-The user also provided context for how to proceed:
-${note}`;
-}
-
 export function formatAgentFacingToolResultNote(note: PendingToolResultNote): string {
   switch (note.kind) {
     case "approval":
       return formatAgentFacingApprovalNote(note);
-    case "edit":
-      return formatAgentFacingEditNote(note);
     case "block":
       return note.reason;
     case "nested":
@@ -154,10 +112,6 @@ ${formatAgentFacingToolResultNote(note.note)}`;
 
 export function formatHumanFacingSessionDisableNotification(hookName: string): string {
   return `Authorization no longer required (${hookName})... be careful`;
-}
-
-export function formatHumanFacingEditNotification(hookName: string): string {
-  return `Command edited (${hookName})`;
 }
 
 export function formatHumanFacingPendingRequestMessage(hookName: string): string {

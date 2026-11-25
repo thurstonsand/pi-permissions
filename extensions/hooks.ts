@@ -1,9 +1,7 @@
-import {
-  type BashToolCallEvent,
-  type ExtensionAPI,
-  type ExtensionContext,
-  isToolCallEventType,
-  type ToolCallEvent,
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
 import {
   getEnabledPermissionHooks,
@@ -19,7 +17,6 @@ import {
   formatAgentFacingRejectionReason,
   formatAgentFacingToolResultNote,
   formatHumanFacingApprovalNotification,
-  formatHumanFacingEditNotification,
   formatHumanFacingPendingRequestMessage,
   formatHumanFacingPermissionPrompt,
   formatHumanFacingRejectionNotification,
@@ -131,8 +128,6 @@ export function registerPermissionHooks(
       return blockToolCall(event, formatAgentFacingNoUiReason(promptInput), pendingApprovalNotes);
     }
 
-    const bashEvent = isToolCallEventType("bash", event) ? event : undefined;
-    const editable = bashEvent ? { command: bashEvent.input.command } : undefined;
     const prompt = formatHumanFacingPermissionPrompt(promptInput);
     const view: PermissionPromptView = {
       name: prompt.name,
@@ -144,10 +139,8 @@ export function registerPermissionHooks(
         : {}),
       labels: {
         approveLabel: prompt.approveLabel,
-        editLabel: prompt.editLabel,
         rejectLabel: prompt.rejectLabel,
       },
-      ...(editable ? { editable } : {}),
     };
 
     // The pending window opens the moment the hook decides to ask and closes
@@ -191,14 +184,7 @@ export function registerPermissionHooks(
 
     if (!result) return undefined;
 
-    const outcome = handlePromptResult(
-      ctx,
-      event,
-      bashEvent,
-      hook.name,
-      result,
-      pendingApprovalNotes,
-    );
+    const outcome = handlePromptResult(ctx, event, hook.name, result, pendingApprovalNotes);
 
     if (result.kind === "allow" && result.forSession) {
       commitEnablement(pi, ctx, state, setPermissionHookEnabled(state.enablement, hook, false));
@@ -236,24 +222,11 @@ function notifyHookFailures(
 function handlePromptResult(
   ctx: ExtensionContext,
   event: ToolCallEvent,
-  bashEvent: BashToolCallEvent | undefined,
   hookName: string,
   result: PermissionGateResult,
   pendingApprovalNotes: PendingApprovalNotes,
 ): { block: true; reason: string } | undefined {
   switch (result.kind) {
-    case "edit": {
-      if (!bashEvent) throw new Error("edit result produced for a non-bash tool call");
-      bashEvent.input.command = result.command;
-      pendingApprovalNotes.rememberForToolResult(bashEvent.toolCallId, {
-        kind: "edit",
-        hookName,
-        command: result.command,
-        ...(result.note ? { note: result.note } : {}),
-      });
-      ctx.ui.notify(formatHumanFacingEditNotification(hookName), "warning");
-      return undefined;
-    }
     case "allow":
       if (result.note) {
         ctx.ui.notify(

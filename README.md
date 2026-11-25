@@ -110,13 +110,12 @@ return request({
   guidance: "Check the target environment.",
   highlight: /production|prod-db/i,
   approveLabel: "Approve",
-  editLabel: "Edit",
   rejectLabel: "Reject",
 });
 return block("Do not edit generated files directly.");
 ```
 
-`guidance` adds request-specific text to the prompt. `highlight` emphasizes offending fragments of the tool detail with a string, RegExp, array of either, precomputed spans, or a callback that returns spans. If no highlight is provided, it uses the matched command by default. `approveLabel`, `editLabel`, and `rejectLabel` change the button labels for that request.
+`guidance` adds request-specific text to the prompt. `highlight` emphasizes offending fragments of the tool detail with a string, RegExp, array of either, precomputed spans, or a callback that returns spans. If no highlight is provided, it uses the matched command by default. `approveLabel` and `rejectLabel` change the button labels for that request.
 
 A highlight callback receives the rendered tool detail and returns half-open `{ start, end }` offsets. Use `highlightSpans(detail, pattern)` inside a callback when you need pattern matching plus a little extra filtering.
 
@@ -298,13 +297,9 @@ Rejecting blocks the tool. A rejection with a note tells the agent how to procee
 
 `ctrl+s` approves and disables the deciding permission check for the rest of the session branch, exactly as if you had approved and then run `/permissions disable <name>`. Any note drafted on the approve choice still travels with the approval.
 
-For `bash` tool calls, **Edit** opens the command and an optional note in a multiline editor.
-
-![Editing a bash command before approval](images/edit-command.png)
-
 ### In RPC hosts
 
-When Pi runs in RPC mode, for example inside T3 Code, the request arrives as a select dialog the host renders. Its title is the same header and description, followed by the tool call in a Markdown code block, and it offers three choices: approve, approve and don't ask again this session, and reject. Rejecting aborts the turn. If the host lets you type your own answer, any text other than one of the choices rejects the call and tells the agent why, without aborting the turn. Notes on approvals, editing commands, and highlights are TUI-only.
+When Pi runs in RPC mode, for example inside T3 Code, the request arrives as a select dialog the host renders. Its title is the same header and description, followed by the tool call in a Markdown code block, and it offers three choices: approve, approve and don't ask again this session, and reject. Rejecting aborts the turn. If the host lets you type your own answer, any text other than one of the choices rejects the call and tells the agent why, without aborting the turn. Notes on approvals and highlights are TUI-only.
 
 The host can't be told to withdraw a dialog, so "don't ask again" leaves that check's other open requests on screen and answerable.
 

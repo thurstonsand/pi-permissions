@@ -46,12 +46,11 @@ return request({
   guidance: "Check the target environment and release identifier.",
   highlight: /production|prod-db/i,
   approveLabel: "Deploy",
-  editLabel: "Edit command",
   rejectLabel: "Cancel deploy",
 });
 ```
 
-`guidance` is request-specific advice. Keep the hook `description` stable; put details that vary by call in `guidance`. `editLabel` applies to bash requests, where Pi can open the command editor.
+`guidance` is request-specific advice. Keep the hook `description` stable; put details that vary by call in `guidance`.
 
 Block without offering approval:
 

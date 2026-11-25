@@ -1,13 +1,5 @@
+import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import {
-  type ExtensionContext,
-  getAgentDir,
-  type KeybindingsManager,
-  SettingsManager,
-  type Theme,
-} from "@earendil-works/pi-coding-agent";
-import {
-  Editor,
-  type EditorTheme,
   type Focusable,
   getKeybindings,
   type KeyId,
@@ -21,8 +13,7 @@ import {
 import type { PermissionRequestLabels } from "../api.js";
 import type { PermissionHighlight } from "../highlight.js";
 import { formatHighlightedDetail } from "../presentation.js";
-import { DraftInput, sanitizeDraftInput } from "./draft-input.js";
-import { openExternalEditor } from "./external-editor.js";
+import { DraftInput } from "./draft-input.js";
 import {
   type LegendHit,
   type LegendItem,
@@ -34,12 +25,9 @@ import {
 
 export type PermissionGateResult =
   | { kind: "allow"; forSession?: true; note?: string }
-  | { kind: "reject"; abort: boolean; note?: string }
-  | { kind: "edit"; command: string; note?: string };
+  | { kind: "reject"; abort: boolean; note?: string };
 
-type PermissionChoice = "yes" | "edit" | "no";
-type PromptMode = "select" | "edit";
-type EditField = "command" | "note";
+type PermissionChoice = "yes" | "no";
 
 type ResolvedLabels = Required<PermissionRequestLabels>;
 
@@ -50,25 +38,14 @@ export interface PermissionPromptView {
   detail: string;
   highlight?: PermissionHighlight;
   labels: ResolvedLabels;
-  editable?: { command: string };
 }
 
-type EditSession = { original: string; editor: Editor };
-
-const EMPTY_COMMAND_WARNING = "An empty command achieves nothing";
 // Content starts past the frame's left border and its one space of padding.
 const CONTENT_X = 2;
-const NUMBER_KEYS: readonly KeyId[] = ["1", "2", "3"];
+const NUMBER_KEYS: readonly KeyId[] = ["1", "2"];
 
 function padRight(content: string, width: number): string {
   return content + " ".repeat(Math.max(0, width - visibleWidth(content)));
-}
-
-function stripCursorHighlight(line: string): string {
-  // Drop the editor's fake cursor markers, keeping the character they wrap; the
-  // TUI would otherwise resolve them to reverse video. pi-tui declares these as
-  // FAKE_CURSOR_START/END but does not export them from its entry point.
-  return line.replaceAll("\x1b_pi:fc\x07", "").replaceAll("\x1b_pi:/fc\x07", "");
 }
 
 function wrapParagraphs(text: string, width: number): string[] {
@@ -77,36 +54,15 @@ function wrapParagraphs(text: string, width: number): string[] {
     .flatMap((line) => (line ? wrapTextWithAnsi(line, Math.max(1, width)) : [""]));
 }
 
-function buildEditorTheme(theme: Theme): EditorTheme {
-  const dim = (text: string) => theme.fg("dim", text);
-  return {
-    borderColor: (text: string) => theme.fg("borderMuted", text),
-    selectList: {
-      selectedPrefix: (text: string) => theme.fg("accent", text),
-      selectedText: (text: string) => theme.fg("accent", text),
-      description: dim,
-      scrollInfo: dim,
-      noMatch: dim,
-    },
-  };
-}
-
 class PermissionPromptOverlay implements Focusable {
   focused = false;
 
-  private mode: PromptMode = "select";
   private selected: PermissionChoice = "yes";
   private editing = false;
   private tabUsed = false;
-  private editField: EditField = "command";
-  private warning: string | null = null;
   private bodyScroll = 0;
   private bodyPageSize = 0;
   private bodyMaxScroll = 0;
-  // Single-slot stash for the ctrl+r original/edits toggle. Non-null means the
-  // buffer currently shows the pristine original and holds the approver's edits
-  // in reserve; null means the buffer holds the live draft.
-  private stashedEdits: string | null = null;
   // Rebuilt on every render: component row -> what is drawn on it. render()
   // runs before any pointer event can land, so it is the cheapest honest hit
   // map for a component that paints itself as flat lines. Each field's label
@@ -116,53 +72,31 @@ class PermissionPromptOverlay implements Focusable {
     number,
     { choice: PermissionChoice; offset: number; width: number }
   >();
-  private editRows:
-    | { commandStart: number; commandEnd: number; noteStart: number; noteEnd: number }
-    | undefined;
   private notePrefixWidth = 0;
   private bodyWidth = 0;
   private readonly legendRows = new Map<number, LegendHit[]>();
   private readonly legendPointer = new LegendPointer(() => this.tui.requestRender());
-  // The option a press landed on. Selecting a choice re-renders the detail box
-  // at a different height, and pi retargets the release with the origin it
+  // The option a press landed on. Selecting a choice closes an open note, which
+  // can re-render the options at a different height, and pi retargets the release with the origin it
   // captured at press, so the click arrives holding a row number that now
   // points somewhere else. The gesture has to carry its own identity.
   private pressedChoice: PermissionChoice | undefined;
   private readonly drafts: Record<PermissionChoice, DraftInput>;
-  private readonly choices: PermissionChoice[];
-  private readonly editSession?: EditSession;
+  private readonly choices: PermissionChoice[] = ["yes", "no"];
 
   constructor(
     private tui: TUI,
     private theme: Theme,
-    private keybindings: KeybindingsManager,
     private view: PermissionPromptView,
-    private externalEditorCommand: string,
     private done: (result: PermissionGateResult) => void,
   ) {
-    this.drafts = {
-      yes: new DraftInput(theme),
-      edit: new DraftInput(theme),
-      no: new DraftInput(theme),
-    };
-    this.choices = view.editable ? ["yes", "edit", "no"] : ["yes", "no"];
-
-    if (view.editable) {
-      const editor = new Editor(tui, buildEditorTheme(theme));
-      editor.setText(view.editable.command);
-      this.editSession = { original: view.editable.command, editor };
-    }
+    this.drafts = { yes: new DraftInput(theme), no: new DraftInput(theme) };
   }
 
   invalidate(): void {}
   dispose(): void {}
 
   handleInput(data: string): void {
-    if (this.mode === "edit") {
-      this.handleEditModeInput(data);
-      return;
-    }
-
     if (this.isCancel(data)) {
       this.done({ kind: "reject", abort: true });
       return;
@@ -173,8 +107,6 @@ class PermissionPromptOverlay implements Focusable {
       return;
     }
 
-    // Reachable only past the edit-mode dispatch above, which is what confines
-    // don't-ask-again to select mode — with or without a note open.
     if (this.isDontAskAgain(data)) {
       this.commitDontAskAgain();
       return;
@@ -205,7 +137,7 @@ class PermissionPromptOverlay implements Focusable {
     // Assigned on every press, so a gesture abandoned by dragging away cannot
     // leak its choice into some later click.
     if (event.type === "press") {
-      this.pressedChoice = this.mode === "select" ? this.pressableOptionAt(event) : undefined;
+      this.pressedChoice = this.pressableOptionAt(event);
       if (!this.pressedChoice) return undefined;
 
       const changed = this.selected !== this.pressedChoice;
@@ -223,8 +155,6 @@ class PermissionPromptOverlay implements Focusable {
 
     // Everything below reaches a click that no press of ours claimed, which pi
     // delivers with a freshly resolved row. Nothing has reflowed under it.
-    if (this.mode === "edit") return this.handleEditModeMouse(event);
-
     if (event.type === "wheel") {
       if (this.bodyPageSize === 0) return undefined;
       return { handled: true, render: this.scrollBodyLines(event.wheelDelta ?? 0) };
@@ -267,41 +197,6 @@ class PermissionPromptOverlay implements Focusable {
     });
   }
 
-  // Both fields answer to clicks alone, the way pi's own Editor does, so a drag
-  // across them still selects text for the clipboard.
-  private handleEditModeMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
-    const rows = this.editRows;
-    if (!rows || event.type !== "click") return undefined;
-
-    if (event.y >= rows.commandStart && event.y < rows.commandEnd) {
-      this.focusEditField("command");
-      if (event.y === rows.commandStart) return { handled: true, focus: true };
-      return (
-        this.editSession?.editor.handleMouse({
-          ...event,
-          x: event.x - CONTENT_X,
-          y: event.y - rows.commandStart - 1,
-          width: this.bodyWidth,
-          height: rows.commandEnd - rows.commandStart - 1,
-        }) ?? { handled: true, focus: true }
-      );
-    }
-
-    if (event.y >= rows.noteStart && event.y < rows.noteEnd) {
-      this.focusEditField("note");
-      if (event.y > rows.noteStart) {
-        this.drafts.edit.placeCursor(
-          this.bodyWidth,
-          event.y - rows.noteStart - 1,
-          event.x - CONTENT_X,
-        );
-      }
-      return { handled: true, focus: true };
-    }
-
-    return undefined;
-  }
-
   render(width: number): string[] {
     const innerWidth = Math.max(20, width - 2);
     const bodyWidth = Math.max(1, innerWidth - 1);
@@ -309,11 +204,9 @@ class PermissionPromptOverlay implements Focusable {
     const row = (content = "") => `${border("│")} ${padRight(content, bodyWidth)}${border("│")}`;
 
     this.optionRows.clear();
-    this.editRows = undefined;
     this.legendRows.clear();
     this.bodyWidth = bodyWidth;
-    const content =
-      this.mode === "edit" ? this.renderEditMode(bodyWidth) : this.renderSelectMode(bodyWidth);
+    const content = this.renderContent(bodyWidth);
 
     return [
       border(`╭${"─".repeat(innerWidth)}╮`),
@@ -322,7 +215,7 @@ class PermissionPromptOverlay implements Focusable {
     ];
   }
 
-  private renderSelectMode(bodyWidth: number): string[] {
+  private renderContent(bodyWidth: number): string[] {
     const top = [this.theme.fg("accent", this.theme.bold(this.view.name)), ""];
     const header = this.view.header ? [...wrapParagraphs(this.view.header, bodyWidth), ""] : [];
     const options = this.renderOptions(bodyWidth);
@@ -346,7 +239,7 @@ class PermissionPromptOverlay implements Focusable {
       }
     }
 
-    const legend = this.renderSelectLegend();
+    const legend = this.renderLegend();
     this.registerLegend(row + 1, legend);
 
     return [
@@ -425,128 +318,9 @@ class PermissionPromptOverlay implements Focusable {
     };
   }
 
-  // The detail box shows what the highlighted choice will run: the approver's
-  // live buffer under Edit, the agent's original otherwise. Highlights are
-  // decision-scoped evidence about the original, so they are drawn only on it
-  // and never projected onto the edit.
   private detailText(): string {
-    if (this.selected === "edit" && this.editSession) {
-      return this.editSession.editor.getExpandedText().trim();
-    }
     const emphasize = (fragment: string) => this.theme.fg("warning", this.theme.bold(fragment));
     return formatHighlightedDetail(this.view.detail, this.view.highlight, emphasize);
-  }
-
-  private renderEditMode(bodyWidth: number): string[] {
-    if (!this.editSession) return [];
-
-    // The pi Editor always paints its fake cursor regardless of its
-    // focused flag, so strip it while the note field holds focus — otherwise
-    // both fields show a cursor at once.
-    const commandLines = this.editSession.editor.render(bodyWidth);
-    const command =
-      this.editField === "command" ? commandLines : commandLines.map(stripCursorHighlight);
-    const note = this.drafts.edit.renderLines(bodyWidth, {
-      color: "dim",
-      showCursor: this.editField === "note",
-      focused: this.focused,
-    });
-
-    const head = [this.theme.fg("accent", this.theme.bold(this.view.name)), "", "Command"];
-    const between = [
-      this.warning ? this.theme.fg("error", this.warning) : "",
-      this.theme.fg("dim", "Note to agent"),
-    ];
-
-    // render() frames this content in a border, so content line i lands on row
-    // i + 1. Each field starts at its label and ends past its last drawn line.
-    const commandStart = head.length;
-    const commandEnd = commandStart + 1 + command.length;
-    const noteStart = commandEnd + between.length - 1;
-    const noteEnd = noteStart + 1 + note.length;
-    this.editRows = { commandStart, commandEnd, noteStart, noteEnd };
-
-    const legend = this.renderEditLegend();
-    this.registerLegend(noteEnd + 1, legend);
-
-    return [...head, ...command, ...between, ...note, "", ...legend.map((line) => line.text)];
-  }
-
-  private handleEditModeInput(data: string): void {
-    if (!this.editSession) return;
-    this.warning = null;
-
-    if (this.isCancel(data)) {
-      this.mode = "select";
-      return;
-    }
-
-    if (this.keybindings.matches(data, "app.editor.external")) {
-      void this.openExternalForFocusedField();
-      return;
-    }
-
-    if (matchesKey(data, "ctrl+r")) {
-      this.toggleOriginalStash();
-      return;
-    }
-
-    // Only tab is advertised in the legend, but shift+tab toggles too: with two
-    // fields either direction flips focus, and honoring both matches muscle
-    // memory.
-    if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) {
-      this.toggleEditField();
-      return;
-    }
-
-    // Enter submits from either field. Intercepting it here keeps a single
-    // submit path through submitEdit; the Editor's own submit (which trims and
-    // wipes its buffer) is never reached. Shift+enter still falls through for
-    // newlines.
-    if (this.isConfirm(data)) {
-      this.submitEdit();
-      return;
-    }
-
-    if (this.editField === "command") {
-      this.editSession.editor.handleInput(data);
-      this.reconcileStash();
-      return;
-    }
-
-    this.drafts.edit.handleInput(data);
-  }
-
-  // ctrl+r swaps which lineage occupies the buffer rather than destroying edits:
-  // showing edits -> stash them and load the original; showing the original ->
-  // restore the stashed edits. A no-op when the buffer already equals the
-  // original with nothing stashed.
-  private toggleOriginalStash(): void {
-    if (!this.editSession) return;
-    const { editor, original } = this.editSession;
-
-    if (this.stashedEdits === null) {
-      if (this.bufferMatchesOriginal()) return;
-      this.stashedEdits = editor.getExpandedText();
-      editor.setText(original);
-    } else {
-      editor.setText(this.stashedEdits);
-      this.stashedEdits = null;
-    }
-  }
-
-  // Modifying the buffer while it shows the original discards the stash: the
-  // approver has chosen to start over from the original, so the old edits are
-  // not resurrectable.
-  private reconcileStash(): void {
-    if (this.stashedEdits !== null && !this.bufferMatchesOriginal()) {
-      this.stashedEdits = null;
-    }
-  }
-
-  private bufferMatchesOriginal(): boolean {
-    if (!this.editSession) return true;
-    return this.editSession.editor.getExpandedText().trim() === this.editSession.original.trim();
   }
 
   private handleEditingInput(data: string): void {
@@ -680,8 +454,8 @@ class PermissionPromptOverlay implements Focusable {
   }
 
   // Don't ask again always speaks with the Authorize note, whatever choice is
-  // highlighted or being annotated: it is an approval, and notes drafted on Edit
-  // or Abort belong to outcomes the approver is walking away from.
+  // highlighted or being annotated: it is an approval, and a note drafted on
+  // Abort belongs to an outcome the approver is walking away from.
   private commitDontAskAgain(): void {
     const note = this.drafts.yes.trimmed;
     this.done(
@@ -690,11 +464,6 @@ class PermissionPromptOverlay implements Focusable {
   }
 
   private commitSelection(): void {
-    if (this.selected === "edit") {
-      this.enterEditMode();
-      return;
-    }
-
     const note = this.drafts[this.selected].trimmed;
 
     if (this.selected === "yes") {
@@ -705,83 +474,8 @@ class PermissionPromptOverlay implements Focusable {
     this.done(note ? { kind: "reject", abort: false, note } : { kind: "reject", abort: true });
   }
 
-  private enterEditMode(): void {
-    if (!this.editSession) return;
-    this.mode = "edit";
-    this.editing = false;
-    this.selected = "edit";
-    this.editField = "command";
-    this.warning = null;
-    this.drafts.edit.toEnd();
-    this.editSession.editor.focused = true;
-  }
-
-  private toggleEditField(): void {
-    if (this.editField === "command") {
-      this.focusEditField("note");
-      this.drafts.edit.toEnd();
-    } else {
-      this.focusEditField("command");
-    }
-  }
-
-  // The embedded Editor paints the cursor pi positions the hardware cursor and
-  // IME window from, and it only paints it while focused. Every path that moves
-  // between the fields goes through here, or keyboard and mouse navigation end
-  // up disagreeing about which field is live.
-  private focusEditField(field: EditField): void {
-    if (!this.editSession) return;
-    this.editField = field;
-    this.editSession.editor.focused = field === "command";
-  }
-
-  private submitEdit(): void {
-    if (!this.editSession) return;
-
-    const command = this.editSession.editor.getExpandedText().trim();
-    if (command.length === 0) {
-      this.warning = EMPTY_COMMAND_WARNING;
-      return;
-    }
-
-    const note = this.drafts.edit.trimmed;
-
-    if (command === this.editSession.original.trim()) {
-      this.done(note ? { kind: "allow", note } : { kind: "allow" });
-      return;
-    }
-
-    this.done(note ? { kind: "edit", command, note } : { kind: "edit", command });
-  }
-
-  private async openExternalForFocusedField(): Promise<void> {
-    if (!this.editSession) return;
-
-    if (this.editField === "command") {
-      const next = await openExternalEditor(
-        this.tui,
-        this.externalEditorCommand,
-        this.editSession.editor.getExpandedText(),
-      );
-      if (next !== null) {
-        this.editSession.editor.setText(next);
-        this.reconcileStash();
-      }
-      return;
-    }
-
-    const next = await openExternalEditor(
-      this.tui,
-      this.externalEditorCommand,
-      this.drafts.edit.text,
-    );
-    if (next !== null) this.drafts.edit.setText(sanitizeDraftInput(next));
-  }
-
   private labelFor(choice: PermissionChoice): string {
-    if (choice === "yes") return this.view.labels.approveLabel;
-    if (choice === "no") return this.view.labels.rejectLabel;
-    return this.view.labels.editLabel;
+    return choice === "yes" ? this.view.labels.approveLabel : this.view.labels.rejectLabel;
   }
 
   private renderOptions(width: number): { choice: PermissionChoice; lines: string[] }[] {
@@ -814,7 +508,7 @@ class PermissionPromptOverlay implements Focusable {
     });
   }
 
-  private renderSelectLegend(): LegendLine[] {
+  private renderLegend(): LegendLine[] {
     const first: LegendItem[] = [{ key: "↑↓", description: "select" }];
     if (this.bodyPageSize > 0) first.push({ key: "f/b", description: "scroll" });
     first.push(
@@ -837,48 +531,6 @@ class PermissionPromptOverlay implements Focusable {
     const options = { pressedKey: this.legendPointer.pressedKey };
     return [layoutLegend(this.theme, first, options), layoutLegend(this.theme, second, options)];
   }
-
-  private renderEditLegend(): LegendLine[] {
-    const first: LegendItem[] = [
-      { key: "enter", description: "run", run: () => this.submitEdit() },
-    ];
-    // shift+enter inserts a newline only in the multi-line command editor; the
-    // note field is single-line and ignores it.
-    if (this.editField === "command") {
-      first.push({ key: "shift+enter", description: "newline" });
-    }
-    first.push({
-      key: "tab",
-      description: `switch to ${this.editField === "command" ? "note" : "command"}`,
-      run: () => this.toggleEditField(),
-    });
-
-    const second: LegendItem[] = [
-      {
-        key: this.keybindings.getKeys("app.editor.external").join("/"),
-        description: "external editor",
-        run: () => void this.openExternalForFocusedField(),
-      },
-      {
-        // Swap target doubles as the state indicator: "original" when the buffer
-        // holds edits, "your edits" when it holds the stashed-away original.
-        key: "ctrl+r",
-        description: this.stashedEdits === null ? "original" : "your edits",
-        run: () => this.toggleOriginalStash(),
-      },
-      {
-        key: "esc",
-        description: "back",
-        run: () => {
-          this.warning = null;
-          this.mode = "select";
-        },
-      },
-    ];
-
-    const options = { pressedKey: this.legendPointer.pressedKey };
-    return [layoutLegend(this.theme, first, options), layoutLegend(this.theme, second, options)];
-  }
 }
 
 // Resolves undefined, without an answer, once retract aborts.
@@ -887,29 +539,11 @@ export async function showPermissionGate(
   view: PermissionPromptView,
   retract: AbortSignal,
 ): Promise<PermissionGateResult | undefined> {
-  const externalEditorCommand = view.editable ? resolveExternalEditorCommand(ctx) : "";
   return ctx.ui.custom<PermissionGateResult | undefined>(
-    (tui, theme, keybindings, done) => {
+    (tui, theme, _keybindings, done) => {
       retract.addEventListener("abort", () => done(undefined), { once: true });
-      return new PermissionPromptOverlay(
-        tui,
-        theme,
-        keybindings,
-        view,
-        externalEditorCommand,
-        done,
-      );
+      return new PermissionPromptOverlay(tui, theme, view, done);
     },
     { blocked: { kind: "permission", message: view.name } },
   );
-}
-
-// Resolve the approver's external editor the same way pi does for its own
-// input: the `externalEditor` setting, then $VISUAL/$EDITOR, then a platform
-// default.
-function resolveExternalEditorCommand(ctx: ExtensionContext): string {
-  const settings = SettingsManager.create(ctx.cwd, getAgentDir(), {
-    projectTrusted: ctx.isProjectTrusted(),
-  });
-  return settings.getExternalEditorCommand() ?? (process.platform === "win32" ? "notepad" : "nano");
 }

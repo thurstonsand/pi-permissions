@@ -20,7 +20,7 @@ This supports deliberate workflow boundaries—reviewing commits, protecting gen
 
 ## Terms used below
 
-- **Approver:** the person running the Pi session. They see permission prompts and approve, edit, or reject requested tool calls.
+- **Approver:** the person running the Pi session. They see permission prompts and approve or reject requested tool calls.
 - **Tool call:** one action the agent proposes through a Pi tool, including its input: a bash command, file path, or custom-tool payload.
 - **Permission module:** a TypeScript file loaded by `pi-permissions`. Its default export registers permission hooks.
 - **Permission hook:** one named, independently toggleable check that inspects a tool call and may return a decision.
