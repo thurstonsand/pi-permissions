@@ -6,7 +6,7 @@
 
 ### Added
 
-- Permission requests work in RPC mode (`pi --mode rpc`), such as Pi inside T3 Code, instead of always being blocked. The host shows a select dialog with the request's header, description, and the tool call in a code block, offering approve, approve and don't ask again this session, and reject. An answer you type yourself rejects the call and tells the agent why. Notes on approvals and highlights stay TUI-only.
+- Permission requests work in RPC mode (`pi --mode rpc`), such as Pi inside T3 Code, instead of always being blocked. The host shows a select dialog with the request's header, description, and the tool call in a code block, offering approve, approve and don't ask again this session, and reject. An answer you type yourself rejects the call and tells the agent why. Notes on approvals and highlights stay TUI-only. The `permissions:<active>/<total>` status stays a TUI footer item, since RPC hosts cannot hide it.
 
 ### Changed
 

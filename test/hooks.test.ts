@@ -352,6 +352,16 @@ git commit -m 'wip'
     expect(isPermissionHookEnabled(runtime.state.enablement, runtime.hook)).toBe(false);
   });
 
+  it("keeps the enablement count out of the host's status banner", async () => {
+    const runtime = createRuntime({ kind: "allow" }, { mode: "rpc" });
+
+    const toolCall = runtime.toolCall(gitCommit);
+    (await runtime.nextSelect()).answer("Authorize, and don't ask again this session");
+    await toolCall;
+
+    expect(runtime.statuses).toEqual([]);
+  });
+
   it("rejects with a typed answer as the note, without aborting the turn", async () => {
     const runtime = createRuntime({ kind: "allow" }, { mode: "rpc" });
 

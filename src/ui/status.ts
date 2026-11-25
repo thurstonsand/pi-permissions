@@ -10,7 +10,9 @@ export function syncPermissionsStatus(
   hooks: readonly RuntimePermissionHook[],
   enablement: PermissionEnablement,
 ): void {
-  if (!ctx.hasUI) return;
+  // RPC hosts have no way to hide a status key, so the count would sit in their
+  // banner on every session; it stays a TUI footer item.
+  if (ctx.mode !== "tui") return;
 
   const status = getPermissionEnablementStatus(hooks, enablement);
   const color =

@@ -102,7 +102,11 @@ function createRuntime(
   const notify = vi.fn();
   return {
     pi: { appendEntry } as never,
-    ctx: { mode, hasUI: false, ui: { notify } } as never,
+    ctx: {
+      mode,
+      hasUI: true,
+      ui: { notify, setStatus: vi.fn(), theme: { fg: (_color: string, text: string) => text } },
+    } as never,
     state: { hooks: [hook], enablement },
     appendEntry,
     notify,
