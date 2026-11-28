@@ -100,7 +100,7 @@ For custom tools, use `isCustomToolInput()` or the `custom` branch of `matchTool
 
 Any tool may carry `tool.annotations`, the unverified hints its author declares (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`). Pi's built-in MCP support names tools `mcp__<server>__<tool>` and passes along the hints each server declares.
 
-Hooks also see calls that tools make on the model's behalf, such as the tool calls inside a `codemode` script. Approval notes and edits on those calls are relayed to the agent on the calling tool's result.
+Hooks also see calls that tools make on the model's behalf, such as the tool calls inside a `codemode` script. Approval notes on those calls are relayed to the agent on the calling tool's result.
 
 Decisions are one of:
 
